@@ -18,4 +18,4 @@ activity = form['activity'].value
 with open('record.txt','a') as f:
     f.write('{}\t{}\n'.format(now.isoformat(), activity))
 
-print('{}: {}'.format(activity, now.isoformat()))
+print('{}: {}'.format(now.isoformat(), activity))
