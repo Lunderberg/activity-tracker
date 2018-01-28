@@ -87,11 +87,19 @@ function update_plots() {
     var range_start = new Date(now);
     range_start.setDate(range_start.getDate() - n_days);
 
-    var last_week = plot_day_by_day(range_start, now);
-    Plotly.newPlot('plot', last_week);
+    plot_day_by_day('plot', range_start, now);
 }
 
-function plot_day_by_day(first_day, last_day) {
+function format_time(time) {
+    var hours = time.getHours();
+    var minutes = time.getMinutes() + '';
+    if(minutes.length == 1) {
+        minutes = '0' + minutes;
+    }
+    return hours + ':' + minutes;
+}
+
+function plot_day_by_day(div, first_day, last_day) {
     first_day.setHours(0,0,0,0);
     last_day.setHours(0,0,0,0);
 
@@ -107,8 +115,14 @@ function plot_day_by_day(first_day, last_day) {
         return i;
     });
 
+    var text = minute_of_day.map(function() {
+        return day_of_period.map(function() {
+            return null;
+        });
+    });
+
     var data_map = {};
-    var data = categories.map(function(cat) {
+    var data = categories.map(function(cat,i) {
         var data_set = {type: 'heatmap',
                         x: day_of_period,
                         y: minute_of_day,
@@ -120,6 +134,8 @@ function plot_day_by_day(first_day, last_day) {
                         colorscale: [[0, cat.color], [1, cat.color]],
                         title: cat.activity,
                         showscale: false,
+                        hoverinfo: (i===0) ? 'text' : 'none',
+                        text: text,
                        };
         data_map[cat.activity] = data_set;
         return data_set;
@@ -135,13 +151,26 @@ function plot_day_by_day(first_day, last_day) {
                 date.setMinutes(minute);
                 if(start_time <= date && date < end_time) {
                     data_set.z[j][i] = 1;
+                    text[j][i] = (format_time(start_time) +
+                                  " - " +
+                                  format_time(end_time) +
+                                  ": " + entry.activity);
                 }
             });
         });
     });
 
+    var layout = {
+        yaxis: {tickvals: Array(9).fill(null).map(function(_,i) { return 3*60*i; }),
+                ticktext: Array(9).fill(null).map(function(_,i) {
+                    return (3*i) + ':00';
+                }),
+                range:[0,24*60],
+               },
+        width: 600,
+    };
 
-    return data;
+    Plotly.newPlot(div, data, layout);
 }
 
 main();
