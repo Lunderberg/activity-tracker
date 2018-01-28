@@ -2,14 +2,18 @@
 
 from glob import glob
 from http.server import HTTPServer, CGIHTTPRequestHandler, SimpleHTTPRequestHandler
+from socketserver import ThreadingMixIn
 import ssl
 import os
+
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    pass
 
 def main():
     os.chdir(os.path.dirname(__file__))
     os.chdir('web-serve')
 
-    httpd = HTTPServer(('0.0.0.0',12345), CGIHTTPRequestHandler)
+    httpd = ThreadingHTTPServer(('0.0.0.0',12345), CGIHTTPRequestHandler)
     certfile = glob('../config/config/live/*/fullchain.pem')[0]
     keyfile = glob('../config/config/live/*/privkey.pem')[0]
     httpd.socket = ssl.wrap_socket(httpd.socket,
