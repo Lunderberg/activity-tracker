@@ -13,19 +13,33 @@ NodeList.prototype.forEach = Array.prototype.forEach;
 
 
 function main() {
-    connect_callbacks();
-    set_button_colors();
+    generate_buttons();
     download_history();
 }
 
-function connect_callbacks() {
-    document.querySelectorAll('.submit-activity').forEach(function(button) {
-        var argument = button.innerHTML;
+function generate_buttons() {
+    var div = document.getElementById('button-container');
+    div.innerHTML = categories.map(function(cat) {
+        return ('<button class=submit-activity ' +
+                'id=submit-activity-ACT ' +
+                'value="ACT">ACT</button>').replace(/ACT/g,cat.activity);
+    }).join('');
+
+    console.log(div.innerHTML);
+
+    categories.forEach(function(cat) {
+        var button = document.querySelector('#submit-activity-'+cat.activity);
+        button.style.backgroundColor = cat.color;
+
+
+        var argument = button.value;
+
         function callback() {
             var req = new XMLHttpRequest();
             req.open('POST', 'cgi-bin/record-value.py', true);
 
-            req.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+            req.setRequestHeader('Content-type',
+                                 'application/x-www-form-urlencoded');
 
             req.onload = function() {
                 if(req.status === 200) {
@@ -40,17 +54,6 @@ function connect_callbacks() {
         }
 
         button.addEventListener('click', callback);
-    });
-}
-
-function set_button_colors() {
-    document.querySelectorAll('.submit-activity').forEach(function(button) {
-        let color = categories.filter(function(cat) {
-            return cat.activity === button.innerHTML;
-        })[0].color;
-        if(color !== null) {
-            button.style.backgroundColor = color;
-        }
     });
 }
 
