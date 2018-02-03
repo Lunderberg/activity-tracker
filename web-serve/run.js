@@ -42,12 +42,13 @@ function generate_buttons() {
                                  'application/x-www-form-urlencoded');
 
             req.onload = function() {
+                var text = '';
                 if(req.status === 200) {
-                    var text = req.responseText;
+                    load_history(req.responseText);
                 } else {
-                    var text = 'Could not submit, please retry';
+                    text = 'Could not submit, please retry';
                 }
-                document.getElementById('result').innerHTML = text
+                document.getElementById('result').innerHTML = text;
             };
 
             req.send('activity='+argument);
@@ -79,12 +80,13 @@ function load_history(text) {
         return {time: new Date(split[0]),
                 activity: split[1]};
     });
+    generate_entry_text();
 
-    generate_text();
+    update_current_activity();
     update_plots();
 }
 
-function generate_text() {
+function generate_entry_text() {
     activity_log.forEach(function(entry, i) {
         let start_time = entry.time;
         let end_time = (i<activity_log.length-1) ? activity_log[i+1].time : new Date();
@@ -93,6 +95,14 @@ function generate_text() {
                       format_time(end_time) +
                       ": " + entry.activity);
     });
+}
+
+function update_current_activity() {
+    var span = document.getElementById('current-activity');
+    var current = (activity_log.length===0
+                   ? ''
+                   : activity_log[activity_log.length-1].activity);
+    span.innerHTML = current;
 }
 
 function update_plots() {
