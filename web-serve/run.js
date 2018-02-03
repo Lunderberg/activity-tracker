@@ -7,6 +7,8 @@ var categories = [{activity: 'home',
                    color: 'DarkOrange'},
                   {activity: 'sleep',
                    color: 'DarkSlateBlue'},
+                  {activity: 'errands',
+                   color: 'Cyan'},
                  ];
 
 NodeList.prototype.forEach = Array.prototype.forEach;
