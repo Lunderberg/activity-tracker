@@ -79,22 +79,20 @@ function load_history(text) {
         var split = line.split('\t');
         return {time: new Date(split[0]),
                 activity: split[1]};
+    }).map(function(entry, i, arr) {
+        var end_time = (i < arr.length-1) ? arr[i+1].time : new Date();
+        var text = (format_time(entry.time) +
+                    " - " +
+                    format_time(end_time) +
+                    ": " + entry.activity);
+        return {time: entry.time,
+                activity: entry.activity,
+                end_time: end_time,
+                text: text};
     });
-    generate_entry_text();
 
     update_current_activity();
     update_plots();
-}
-
-function generate_entry_text() {
-    activity_log.forEach(function(entry, i) {
-        let start_time = entry.time;
-        let end_time = (i<activity_log.length-1) ? activity_log[i+1].time : new Date();
-        entry.text = (format_time(start_time) +
-                      " - " +
-                      format_time(end_time) +
-                      ": " + entry.activity);
-    });
 }
 
 function update_current_activity() {
@@ -182,9 +180,12 @@ function plot_day_by_day(div, first_day, last_day) {
                 i_entry++;
             }
             var entry = activity_log[i_entry];
-            var data_set = data_map[entry.activity];
-            data_set.z[j][i] = 1;
-            text[j][i] = entry.text;
+
+            if(date < entry.end_time) {
+                var data_set = data_map[entry.activity];
+                data_set.z[j][i] = 1;
+                text[j][i] = entry.text;
+            }
         });
     });
 
