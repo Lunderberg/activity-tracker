@@ -16,3 +16,7 @@
 .display-current {
     font-size: 50px;
 }
+
+.time-span-entry {
+    text-align: right;
+}

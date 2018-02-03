@@ -11,6 +11,10 @@ var categories = [{activity: 'home',
 
 NodeList.prototype.forEach = Array.prototype.forEach;
 
+var color_map = {};
+categories.forEach(function(cat) {
+    color_map[cat.activity] = cat.color;
+});
 
 function main() {
     generate_buttons();
@@ -24,8 +28,6 @@ function generate_buttons() {
                 'id=submit-activity-ACT ' +
                 'value="ACT">ACT</button>').replace(/ACT/g,cat.activity);
     }).join('');
-
-    console.log(div.innerHTML);
 
     categories.forEach(function(cat) {
         var button = document.querySelector('#submit-activity-'+cat.activity);
@@ -93,6 +95,7 @@ function load_history(text) {
 
     update_current_activity();
     update_plots();
+    update_recent_activity_table();
 }
 
 function update_current_activity() {
@@ -120,6 +123,16 @@ function format_time(time) {
         minutes = '0' + minutes;
     }
     return hours + ':' + minutes;
+}
+
+function format_span(span) {
+    var hours = Math.floor(span/(60*60*1000));
+    var minutes = Math.floor( (span%(60*60*1000)) / (60*1000) );
+    var seconds = Math.floor( (span%(60*1000)) / 1000 );
+
+    return ((hours===0 ? '' : hours+'h') +
+            (minutes===0 ? '' : minutes+'m') +
+            (seconds+'s'));
 }
 
 function plot_day_by_day(div, first_day, last_day) {
@@ -200,6 +213,62 @@ function plot_day_by_day(div, first_day, last_day) {
     };
 
     Plotly.newPlot(div, data, layout);
+}
+
+function summary_between(start_time, end_time) {
+    var output = {};
+    categories.forEach(function(cat) {
+        output[cat.activity] = 0;
+    });
+
+    activity_log.filter(function(entry) {
+        return (entry.end_time > start_time ||
+                entry.start_time < end_time);
+    }).forEach(function(entry,i,arr) {
+        output[entry.activity] += (Math.min(end_time, entry.end_time) -
+                                   Math.max(start_time, entry.time));
+    });
+
+    return output;
+}
+
+function update_recent_activity_table() {
+    var now = activity_log[activity_log.length-1].end_time;
+
+    var time_periods = [
+        {desc: 'Last 24 Hours',
+         time_diff_ms: 24*60*60*1000},
+        {desc: 'Last 7 Days',
+         time_diff_ms: 7*24*60*60*1000},
+    ];
+
+    var table_header = ('<tr>' +
+                        '<th></th>' +
+                        categories.map(function(cat) {
+                            return '<th>' + cat.activity + '</th>';
+                        }).join('') +
+                        '</tr>');
+
+    var table_rows = time_periods.map(function(period) {
+        var start = new Date(now.getTime() - period.time_diff_ms);
+        var summary = summary_between(start, now);
+
+        return ('<tr>' +
+                '<th>' + period.desc + '</th>' +
+                categories.map(function(cat) {
+                    return ('<td class=time-span-entry>' +
+                            format_span(summary[cat.activity]) +
+                            '</td>');
+                }).join('') +
+                '</tr>');
+    }).join('');
+
+    var table =  ('<table border="1">' +
+                  table_header +
+                  table_rows +
+                  '</table>');
+
+    document.getElementById('recent-activity-tables').innerHTML = table;
 }
 
 main();
