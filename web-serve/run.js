@@ -77,7 +77,19 @@ function load_history(text) {
                 activity: split[1]};
     });
 
+    generate_text();
     update_plots();
+}
+
+function generate_text() {
+    activity_log.forEach(function(entry, i) {
+        let start_time = entry.time;
+        let end_time = (i<activity_log.length-1) ? activity_log[i+1].time : new Date();
+        entry.text = (format_time(start_time) +
+                      " - " +
+                      format_time(end_time) +
+                      ": " + entry.activity);
+    });
 }
 
 function update_plots() {
@@ -141,22 +153,25 @@ function plot_day_by_day(div, first_day, last_day) {
         return data_set;
     });
 
-    activity_log.forEach(function(entry, i) {
-        let data_set = data_map[entry.activity];
-        let start_time = entry.time;
-        let end_time = (i<activity_log.length-1) ? activity_log[i+1].time : new Date();
-        day_of_period.forEach(function(day,i) {
-            minute_of_day.forEach(function(minute, j) {
-                let date = new Date(day.getTime());
-                date.setMinutes(minute);
-                if(start_time <= date && date < end_time) {
-                    data_set.z[j][i] = 1;
-                    text[j][i] = (format_time(start_time) +
-                                  " - " +
-                                  format_time(end_time) +
-                                  ": " + entry.activity);
-                }
-            });
+    var i_entry = 0;
+    let now = new Date();
+    day_of_period.forEach(function(day,i) {
+        let date = new Date(day.getTime());
+        minute_of_day.forEach(function(minute, j) {
+            date.setHours(0, minute);
+
+            if(date > now) {
+                return;
+            }
+
+            while(i_entry+1 < activity_log.length &&
+                  activity_log[i_entry+1].time < date) {
+                i_entry++;
+            }
+            var entry = activity_log[i_entry];
+            var data_set = data_map[entry.activity];
+            data_set.z[j][i] = 1;
+            text[j][i] = entry.text;
         });
     });
 
