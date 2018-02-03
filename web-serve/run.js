@@ -64,7 +64,8 @@ function generate_buttons() {
 
 function download_history() {
     var req = new XMLHttpRequest();
-    req.open('GET', 'record.txt', true);
+    var url = 'record.txt?_=' + new Date().getTime();
+    req.open('GET', url, true);
 
     req.onload = function() {
         if(req.status === 200) {
