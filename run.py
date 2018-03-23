@@ -1,30 +1,43 @@
 #!/usr/bin/env python3
 
 from glob import glob
-from http.server import HTTPServer, CGIHTTPRequestHandler, SimpleHTTPRequestHandler
-from socketserver import ThreadingMixIn
-import ssl
 import os
 
-class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
-    pass
+import tornado.httpserver
+import tornado.ioloop
+import tornado.log
+import tornado.web
+
+from record_value import RecordValue
+
+class Handler(tornado.web.StaticFileHandler):
+    def parse_url_path(self, url_path):
+        if not url_path or url_path.endswith('/'):
+            url_path += 'index.html'
+        return url_path
+
+def make_app():
+    web_serve_path = os.path.join(os.path.dirname(__file__),
+                                  'web-serve')
+
+    return tornado.web.Application([
+        (r'/cgi-bin/record-value.py', RecordValue),
+        (r'/(.*)', Handler, {'path': web_serve_path}),
+    ])
+
 
 def main():
-    os.chdir(os.path.dirname(__file__))
-    os.chdir('web-serve')
+    certfile = glob('config/config/live/*/fullchain.pem')[0]
+    keyfile = glob('config/config/live/*/privkey.pem')[0]
 
-    httpd = ThreadingHTTPServer(('0.0.0.0',12345), CGIHTTPRequestHandler)
-    certfile = glob('../config/config/live/*/fullchain.pem')[0]
-    keyfile = glob('../config/config/live/*/privkey.pem')[0]
-    httpd.socket = ssl.wrap_socket(httpd.socket,
-                                   certfile=certfile,
-                                   keyfile=keyfile,
-                                   server_side=True)
-
-    # Forking causes SSL errors
-    # https://blog.farville.com/15-line-python-https-cgi-server/
-    CGIHTTPRequestHandler.have_fork = False
-    httpd.serve_forever()
+    tornado.log.enable_pretty_logging()
+    app = make_app()
+    https = tornado.httpserver.HTTPServer(app, ssl_options = {
+        'certfile': certfile,
+        'keyfile': keyfile,
+    })
+    https.listen(12345)
+    tornado.ioloop.IOLoop.current().start()
 
 if __name__=='__main__':
     main()

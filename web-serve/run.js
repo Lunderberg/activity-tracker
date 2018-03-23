@@ -99,6 +99,7 @@ function load_history(text) {
     update_current_activity();
     update_plots();
     update_recent_activity_table();
+    update_daily_chart();
 }
 
 function update_current_activity() {
@@ -110,7 +111,7 @@ function update_current_activity() {
 }
 
 function update_plots() {
-    var n_days = 8;
+    var n_days = 7;
 
     var now = new Date();
     var range_start = new Date(now);
@@ -272,6 +273,28 @@ function update_recent_activity_table() {
                   '</table>');
 
     document.getElementById('recent-activity-tables').innerHTML = table;
+}
+
+function midnight_to_midnight(time) {
+    var before = new Date(time.getTime());
+    before.setHours(0,0,0,0);
+
+    var after = new Date(before.getTime());
+    after.setDate(after.getDate()+1);
+
+    return {before: before,
+            after: after};
+}
+
+function update_daily_chart() {
+    var div = "daily-activities";
+    var period_getter = midnight_to_midnight;
+
+    activity_log.map(function(entry) {
+        var start_period = period_getter(entry.time);
+        var end_period = period_getter(entry.end_time);
+        12345;
+    });
 }
 
 main();
