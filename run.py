@@ -27,8 +27,9 @@ def make_app():
 
 
 def main():
-    certfile = glob('config/config/live/*/fullchain.pem')[0]
-    keyfile = glob('config/config/live/*/privkey.pem')[0]
+    certfile = sorted(glob('config/config/live/*/fullchain.pem'))[-1]
+    keyfile = sorted(glob('config/config/live/*/privkey.pem'))[-1]
+    print(certfile)
 
     tornado.log.enable_pretty_logging()
     app = make_app()

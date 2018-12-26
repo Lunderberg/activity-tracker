@@ -9,9 +9,29 @@ var categories = [{activity: 'home',
                    color: 'DarkSlateBlue'},
                   {activity: 'errands',
                    color: 'Cyan'},
+                  {activity: 'out',
+                   color: 'Silver'},
                  ];
 
 NodeList.prototype.forEach = Array.prototype.forEach;
+
+// From https://stackoverflow.com/a/10865042/2689797
+Array.prototype.flatten = function() {
+    return [].concat.apply([], this);
+};
+
+// From https://codereview.stackexchange.com/a/37132/44749
+Array.prototype.groupBy = function(f) {
+    var groups = {};
+    this.forEach(function(obj) {
+        var group = JSON.stringify( f(obj) );
+        groups[group] = groups[group] || [];
+        groups[group].push(obj);
+    });
+    return Object.keys(groups).map(function(group) {
+        return groups[group];
+    });
+};
 
 var color_map = {};
 categories.forEach(function(cat) {
@@ -290,11 +310,68 @@ function update_daily_chart() {
     var div = "daily-activities";
     var period_getter = midnight_to_midnight;
 
-    activity_log.map(function(entry) {
+    var data = activity_log.map(function(entry) {
         var start_period = period_getter(entry.time);
         var end_period = period_getter(entry.end_time);
-        12345;
+
+        var time_periods = [];
+
+        var start_time = entry.time;
+        while(start_period.before.getTime() !== end_period.before.getTime() ||
+              start_period.after.getTime() !== end_period.after.getTime()) {
+            start_period.duration = start_period.after - start_time;
+            start_time.setTime(start_period.after.getTime() + 1);
+
+            time_periods.push(start_period);
+            start_period = period_getter(start_time);
+        }
+
+        start_period.duration = entry.end_time - start_time;
+        time_periods.push(start_period);
+
+        time_periods.forEach(function(period) {
+            period.activity = entry.activity;
+        });
+
+        return time_periods;
+    }).flatten().groupBy(function(period) {
+        return [period.activity, period.before, period.after];
+    }).map(function(periods) {
+        var total_duration = periods.map(function(p) {
+            return p.duration;
+        }).reduce(function(a,b) { return a+b; }, 0);
+
+        // Convert from ms to hours.
+        total_duration /= (1000*60*60);
+
+        var first = periods[0];
+        first.duration = total_duration;
+        return first;
+    }).groupBy(function(period) {
+        return period.activity;
+    }).map(function(periods) {
+        var period_centers = periods.map(function(p) {
+            return new Date( (p.before.getTime() + p.after.getTime())/2 );
+        });
+
+        var color = color_map[periods[0].activity];
+
+        return {type: 'scatter',
+                mode: 'markers',
+                x: period_centers,
+                y: periods.map(function(p) { return p.duration; }),
+                name: periods[0].activity,
+                marker: {color: color},
+                line: {color: color},
+               };
     });
+
+    var layout = {
+        title: 'Daily Duration (hours)',
+    };
+
+    Plotly.newPlot(div, data, layout);
+
 }
 
 main();
