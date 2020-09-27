@@ -20,7 +20,6 @@ CREATE TABLE IF NOT EXISTS transactions (
   user_id UUID,
   txn_date TIMESTAMP WITH TIME ZONE,
   activity_id INTEGER NOT NULL,
-  deleted BOOLEAN,
 
   PRIMARY KEY (user_id, txn_date)
 );
@@ -30,6 +29,7 @@ CREATE TABLE IF NOT EXISTS activities (
   activity_id INTEGER,
   activity_name TEXT,
   activity_color TEXT,
+  display BOOLEAN,
 
   PRIMARY KEY (user_id, activity_id)
 );

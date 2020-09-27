@@ -27,7 +27,7 @@ def make_app(database):
          dict(database = database),
         ),
 
-        ('/record.txt',
+        ('/read_log',
          sql_backend.ReadLog,
          dict(database = database),
         ),
@@ -44,6 +44,11 @@ def make_app(database):
 
         ('/refresh',
          sql_backend.RefreshSession,
+         dict(database = database),
+        ),
+
+        ('/update_settings',
+         sql_backend.UpdateSettings,
          dict(database = database),
         ),
 

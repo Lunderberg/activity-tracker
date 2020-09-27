@@ -154,6 +154,19 @@ def extend_session(conn, session_counter):
                          session_expiration = session_expiration))
 
 
+def update_activities(conn, user_id, params):
+    with conn, conn.cursor() as cur:
+        batch_params = [{'user_id': user_id,
+                         'activity_id': i,
+                         'activity_name': p['name'],
+                         'activity_color': p['color'],
+                         'display': p['display']}
+                       for i,p in enumerate(params)]
+        psycopg2.extras.execute_batch(cur,
+                                      get_query('update_activity'),
+                                      batch_params)
+
+
 
 def load_text_file(database, text_file, user_name):
     conn = psycopg2.connect(database=database,
@@ -182,6 +195,34 @@ class DatabaseWebHandler(tornado.web.RequestHandler):
 
         return self._conn
 
+    def validate_session_id(self):
+        user_id = self.get_cookie('user_id')
+        session_counter = self.get_cookie('session_counter')
+        session_id = self.get_cookie('session_id')
+
+        if (user_id is None or
+            session_counter is None or
+            session_id is None):
+
+            self.set_status(403)
+            return
+
+        res = check_session_id(self.conn,
+                               user_id,
+                               session_counter,
+                               session_id)
+
+        if res['session_active']:
+            self.set_status(200)
+        elif res['has_correct_session_id']:
+            # TODO: Handle this case better to display "session
+            # expired" or something like that
+            self.set_status(403)
+        else:
+            self.set_status(403)
+
+        return res['session_active']
+
 
 class RecordTransaction(DatabaseWebHandler):
     def post(self):
@@ -197,7 +238,13 @@ class RecordTransaction(DatabaseWebHandler):
 
 class ReadLog(DatabaseWebHandler):
     def get(self):
+        if not self.validate_session_id():
+            return
+
         self.set_header('Content-type', 'text/html')
+
+        user_id = self.get_cookie('user_id')
+
 
         now = datetime.datetime.now()
         activity = 'sleep'
@@ -233,29 +280,7 @@ class LogIn(DatabaseWebHandler):
 
 class RefreshSession(DatabaseWebHandler):
     def get(self):
-        user_id = self.get_cookie('user_id')
-        session_counter = self.get_cookie('session_counter')
-        session_id = self.get_cookie('session_id')
-
-        if (user_id is None or
-            session_counter is None or
-            session_id is None):
-
-            self.set_status(401)
-            return
-
-        res = check_session_id(self.conn,
-                               user_id,
-                               session_counter,
-                               session_id)
-
-        if res['session_active']:
-            self.set_status(200)
-        elif res['has_correct_session_id']:
-            # TODO: Handle this case better to display "session expired"
-            self.set_status(401)
-        else:
-            self.set_status(401)
+        self.validate_session_id()
 
 
 class LogOut(DatabaseWebHandler):
@@ -272,6 +297,18 @@ class LogOut(DatabaseWebHandler):
             return
 
         res = log_out(self.conn, user_id, session_counter, session_id)
+
+
+class UpdateSettings(DatabaseWebHandler):
+    def post(self):
+        if not self.validate_session_id():
+            return
+
+        user_id = self.get_cookie('user_id')
+        params = json.loads(self.request.body.decode('utf-8'))
+
+        update_activities(self.conn, user_id, params)
+
 
 
 def main():

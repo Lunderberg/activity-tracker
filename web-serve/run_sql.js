@@ -26,6 +26,10 @@ function connect_callbacks() {
     document
         .getElementById('add-new-activity-row')
         .addEventListener('click', add_new_activity_row);
+
+    document
+        .getElementById('submit-activity-settings')
+        .addEventListener('click', submit_activity_settings);
 }
 
 // From https://stackoverflow.com/a/1714899/2689797
@@ -159,6 +163,28 @@ function read_activity_settings() {
                     })
         );
 }
+
+function submit_activity_settings() {
+    var params = read_activity_settings();
+    var status_div = document.getElementById('activity-update-status');
+
+    var req = new XMLHttpRequest();
+
+    function on_results() {
+        if((req.status >= 200) && (req.status < 300)) {
+            status_div.innerHTML = 'Update success.';
+        } else {
+            status_div.innerHTML = 'Update failed, ' + req.status + '.';
+        }
+    }
+
+    status_div.innerHTML = 'Sending update.'
+
+    req.addEventListener('load', on_results);
+    req.open('POST', '/update_settings');
+    req.send(JSON.stringify(params));
+}
+
 
 
 function main() {
