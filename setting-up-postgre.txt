@@ -1,0 +1,9 @@
+sudo apt install postgresql postgresql-contrib-9.5
+
+sudo su - postgres
+
+CREATE USER activity;
+CREATE DATABASE activity;
+GRANT ALL PRIVILEGES ON DATABASE activity TO activity;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+Switch back to main user
