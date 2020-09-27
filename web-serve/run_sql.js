@@ -151,16 +151,52 @@ function add_new_activity_row() {
         });
 }
 
+
+// From https://stackoverflow.com/a/47355187/2689797
+function standardize_color(str){
+    var ctx = document.createElement('canvas').getContext('2d');
+    ctx.fillStyle = str;
+    return ctx.fillStyle;
+}
+
+function init_activity_display() {
+    var table = document.getElementById('edit-activity-table');
+
+    cache.activities.forEach( (row) => {
+        var color = standardize_color(row.activity_color);
+
+        var new_row = table.insertRow(-1);
+        new_row.innerHTML = [
+            "<td></td>",
+            "<td>",
+            `<input class='edit-activity-name' type='text' value="${row.activity_name}">`,
+            "</td>",
+
+            "<td>",
+            `<input class='edit-activity-color' type='color' value="${color}">`,
+            "</td>",
+
+            "<td>",
+            "<input class='edit-activity-hide' type='checkbox' ",
+            (row.display ? '' : 'checked'),
+            ">",
+            "</td>",
+        ].join('');
+    });
+}
+
 function read_activity_settings() {
     return document
         .getElementById('edit-activity-table')
         .querySelectorAll('tr')
         .filter( row => row.querySelector('th')===null )
         .map(
-            row => ({name: row.querySelector('.edit-activity-name').value,
-                     color: row.querySelector('.edit-activity-color').value,
-                     display: !row.querySelector('.edit-activity-hide').checked,
-                    })
+            (row,i) => ({
+                activity_id: i,
+                activity_name: row.querySelector('.edit-activity-name').value,
+                activity_color: row.querySelector('.edit-activity-color').value,
+                display: !row.querySelector('.edit-activity-hide').checked,
+            })
         );
 }
 
@@ -173,6 +209,7 @@ function submit_activity_settings() {
     function on_results() {
         if((req.status >= 200) && (req.status < 300)) {
             status_div.innerHTML = 'Update success.';
+            cache.activities = params;
         } else {
             status_div.innerHTML = 'Update failed, ' + req.status + '.';
         }
@@ -192,7 +229,8 @@ function main() {
     refresh_session();
 
     show_tab('edit-activities-tab');
-    add_new_activity_row();
+    init_activity_display();
+    // add_new_activity_row();
 }
 
 main();

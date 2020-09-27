@@ -43,6 +43,39 @@ def create_user(conn, username, password, email_address = None):
                              email_address = email_address,
                         ))
 
+def setup_default_activities(conn, user_id):
+    update_activities(conn, user_id,
+                      [{'activity_name': 'home',
+                        'activity_color': 'DarkGreen',
+                        'display': True,
+                        },
+
+                       {'activity_name': 'work',
+                        'activity_color': 'Tomato',
+                        'display': True,
+                        },
+
+                       {'activity_name': 'travel',
+                        'activity_color': 'DarkOrange',
+                        'display': True,
+                        },
+
+                       {'activity_name': 'sleep',
+                        'activity_color': 'DarkSlateBlue',
+                        'display': True,
+                        },
+
+                       {'activity_name': 'errands',
+                        'activity_color': 'Cyan',
+                        'display': True,
+                        },
+
+                       {'activity_name': 'out',
+                        'activity_color': 'Silver',
+                        'display': True,
+                        },
+                      ])
+
 
 def generate_session_id():
     return base64.b64encode(os.urandom(16)).decode('ascii')
@@ -158,14 +191,20 @@ def update_activities(conn, user_id, params):
     with conn, conn.cursor() as cur:
         batch_params = [{'user_id': user_id,
                          'activity_id': i,
-                         'activity_name': p['name'],
-                         'activity_color': p['color'],
+                         'activity_name': p['activity_name'],
+                         'activity_color': p['activity_color'],
                          'display': p['display']}
                        for i,p in enumerate(params)]
         psycopg2.extras.execute_batch(cur,
                                       get_query('update_activity'),
                                       batch_params)
 
+
+def read_activity_map(conn, user_id):
+    with conn, conn.cursor() as cur:
+        cur.execute(get_query('read_activity_map'),
+                    dict(user_id = user_id))
+        return [row._asdict() for row in cur.fetchall()]
 
 
 def load_text_file(database, text_file, user_name):
@@ -222,6 +261,35 @@ class DatabaseWebHandler(tornado.web.RequestHandler):
             self.set_status(403)
 
         return res['session_active']
+
+
+class IndexHtml(DatabaseWebHandler):
+    def initialize(self, web_serve_path, *args, **kwargs):
+        super().initialize(*args, **kwargs)
+        self.web_serve_path = web_serve_path
+
+    def get(self, regex_match):
+        filepath = os.path.join(self.web_serve_path, 'index.html')
+        with open(filepath) as f:
+            html = f.read()
+
+        signed_in = self.validate_session_id()
+
+        if signed_in:
+            user_id = self.get_cookie('user_id')
+            activities = read_activity_map(self.conn, user_id)
+        else:
+            activities = []
+
+        cache = {'activities': activities}
+        cache_definition = "var cache = {};".format(json.dumps(cache))
+        dummy_text = "console.log('template not replaced');"
+        html = html.replace(dummy_text, cache_definition)
+
+        self.set_status(200)
+        self.set_header('Content-type', 'text/html')
+        self.write(html)
+
 
 
 class RecordTransaction(DatabaseWebHandler):

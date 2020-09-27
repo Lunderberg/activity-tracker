@@ -22,6 +22,12 @@ def make_app(database):
                                   'web-serve')
 
     return tornado.web.Application([
+        ('/(index.html)?',
+         sql_backend.IndexHtml,
+         dict(database = database,
+              web_serve_path = web_serve_path),
+        ),
+
         ('/cgi-bin/record-value.py',
          sql_backend.RecordTransaction,
          dict(database = database),
