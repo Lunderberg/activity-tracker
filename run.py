@@ -33,8 +33,8 @@ def make_app(database):
          dict(database = database),
         ),
 
-        ('/read_log',
-         sql_backend.ReadLog,
+        ('/read_logs',
+         sql_backend.ReadLogs,
          dict(database = database),
         ),
 

@@ -7,6 +7,8 @@ import functools
 import json
 import os
 
+import dateutil.parser
+
 import tornado.web
 import psycopg2
 import psycopg2.extras
@@ -195,9 +197,8 @@ def update_activities(conn, user_id, params):
                          'activity_color': p['activity_color'],
                          'display': p['display']}
                        for i,p in enumerate(params)]
-        psycopg2.extras.execute_batch(cur,
-                                      get_query('update_activity'),
-                                      batch_params)
+        psycopg2.extras.execute_batch(
+            cur, get_query('update_activity'), batch_params)
 
 
 def read_activity_map(conn, user_id):
@@ -207,14 +208,56 @@ def read_activity_map(conn, user_id):
         return [row._asdict() for row in cur.fetchall()]
 
 
-def load_text_file(database, text_file, user_name):
-    conn = psycopg2.connect(database=database,
-                            cursor_factory=psycopg2.extras.NamedTupleCursor)
+def load_text_file(conn, user_id, text_filepath):
+    activity_map = {d['activity_name']:d['activity_id']
+                    for d in read_activity_map(conn, user_id)}
 
-    with conn, conn.cursor() as cur, open(text_file) as file:
-        for line in file:
-            time,activity = line.split()
-            time = dateutil.parser.parse(time)
+    with conn, conn.cursor() as cur, open(text_filepath) as f:
+        batch_params = []
+        for line in f:
+            line = line.split()
+            if line:
+                time,activity = line
+                time = dateutil.parser.parse(time)
+                batch_params.append({
+                    'user_id': user_id,
+                    'txn_date': time,
+                    'activity_id': activity_map[activity],
+                })
+
+        psycopg2.extras.execute_batch(
+            cur, get_query('insert_transaction'), batch_params)
+
+
+def read_logs(conn, user_id,
+              min_time=None, max_time=None, num_days=None,
+              as_str=False):
+    if min_time is None and max_time is None and num_days is not None:
+        max_time = datetime.datetime.now()
+        min_time = max_time - datetime.timedelta(days = num_days)
+
+    elif min_time is not None and max_time is None and num_days is not None:
+        max_time = min_time + datetime.timedelta(days = num_days)
+
+    elif min_time is None and max_time is not None and num_days is not None:
+        min_time = max_time - datetime.timedelta(days = num_days)
+
+    elif min_time is not None and max_time is None and num_days is not None:
+        max_time = datetime.datetime.now()
+
+
+    with conn, conn.cursor() as cur:
+        cur.execute(get_query('read_logs'),
+                    dict(user_id = user_id,
+                         min_time = min_time,
+                         max_time = max_time))
+        output = [row._asdict() for row in cur.fetchall()]
+
+    if as_str:
+        for log in output:
+            log['txn_date'] = str(log['txn_date'])
+
+    return output
 
 
 
@@ -277,11 +320,17 @@ class IndexHtml(DatabaseWebHandler):
 
         if signed_in:
             user_id = self.get_cookie('user_id')
+
             activities = read_activity_map(self.conn, user_id)
+            logs = read_logs(self.conn, user_id, num_days=8, as_str=True)
         else:
             activities = []
+            logs = []
 
-        cache = {'activities': activities}
+        cache = {'activities': activities,
+                 'logs': logs,
+                 'signed_in': signed_in,
+        }
         cache_definition = "var cache = {};".format(json.dumps(cache))
         dummy_text = "console.log('template not replaced');"
         html = html.replace(dummy_text, cache_definition)
@@ -294,30 +343,26 @@ class IndexHtml(DatabaseWebHandler):
 
 class RecordTransaction(DatabaseWebHandler):
     def post(self):
-        self.set_header('Content-type', 'text/html')
-
         now = datetime.datetime.now()
         activity = self.get_argument('activity')
 
         entry = '{}\t{}\n'.format(now.isoformat(), activity)
+
+        self.set_header('Content-type', 'text/html')
         self.write(entry)
 
 
 
-class ReadLog(DatabaseWebHandler):
+class ReadLogs(DatabaseWebHandler):
     def get(self):
         if not self.validate_session_id():
             return
 
-        self.set_header('Content-type', 'text/html')
-
         user_id = self.get_cookie('user_id')
+        logs = read_logs(self.conn, user_id, num_days = 8, as_str=True)
 
-
-        now = datetime.datetime.now()
-        activity = 'sleep'
-        entry = '{}\t{}\n'.format(now.isoformat(), activity)
-        self.write(entry)
+        self.set_header('Content-type', 'text/html')
+        self.write(json.dumps(logs))
 
 class LogIn(DatabaseWebHandler):
     def post(self):
