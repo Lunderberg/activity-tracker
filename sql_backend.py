@@ -260,6 +260,48 @@ def read_logs(conn, user_id,
     return output
 
 
+# From https://stackoverflow.com/a/58295869/2689797
+def timedelta_format(dt):
+    diff = dt.total_seconds()
+    #d = int(diff / 86400)
+    d = 0
+    h = int((diff - (d * 86400)) / 3600)
+    m = int((diff - (d * 86400 + h * 3600)) / 60)
+    s = int((diff - (d * 86400 + h * 3600 + m *60)))
+    if d > 0:
+        fdiff = '{d}d {h}h {m}m {s}s'
+    elif h > 0:
+        fdiff = '{h}h {m}m {s}s'
+    elif m > 0:
+        fdiff = '{m}m {s}s'
+    else:
+        fdiff = '{s}s'
+
+    fdiff = fdiff.format(d=d, h=h, m=m, s=s)
+    return fdiff
+
+def summarize_recent_activity(conn, user_id, summary_windows, as_str=False):
+    summary_windows = {'summary_window{}'.format(i):d
+                       for i,d in enumerate(summary_windows)}
+
+    query = (get_query('summarize_recent_activity')
+             .replace('(%(summary_window)s)',
+                      ','.join('(%({})s)'.format(k) for k in summary_windows))
+    )
+    params = {'user_id': user_id,
+              **summary_windows}
+
+    with conn, conn.cursor() as cur:
+        cur.execute(query, params)
+        output = [row._asdict() for row in cur.fetchall()]
+
+    if as_str:
+        for log in output:
+            log['summary_window'] = timedelta_format(log['summary_window'])
+            log['time_spent'] = timedelta_format(log['time_spent'])
+
+    return output
+
 
 class DatabaseWebHandler(tornado.web.RequestHandler):
     def initialize(self, database):
@@ -323,13 +365,20 @@ class IndexHtml(DatabaseWebHandler):
 
             activities = read_activity_map(self.conn, user_id)
             logs = read_logs(self.conn, user_id, num_days=8, as_str=True)
+            summary = summarize_recent_activity(
+                self.conn, user_id,
+                summary_windows = [datetime.timedelta(days=d) for d in [1,7,30]],
+                as_str = True,
+            )
         else:
             activities = []
             logs = []
+            summary = []
 
-        cache = {'activities': activities,
+        cache = {'signed_in': signed_in,
+                 'activities': activities,
                  'logs': logs,
-                 'signed_in': signed_in,
+                 'summary': summary,
         }
         cache_definition = "var cache = {};".format(json.dumps(cache))
         dummy_text = "console.log('template not replaced');"

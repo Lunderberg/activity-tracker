@@ -314,7 +314,7 @@ function load_history() {
 
     update_current_activity();
     update_weekly_view();
-    // update_recent_activity_table();
+    update_recent_activity_table();
     // update_daily_chart();
 }
 
@@ -451,6 +451,52 @@ function plot_weekly_view(div, first_day, last_day) {
     };
 
     Plotly.newPlot(div, data, layout);
+}
+
+function update_recent_activity_table() {
+    var activity_map = {}
+    cache.activities.forEach(function(a) {
+        activity_map[a.activity_id] = {name: a.activity_name,
+                                       color: a.activity_color};
+    });
+
+    var displayed_activities = cache.activities.filter(a => a.display);
+
+    var table_header = ('<tr>' +
+                        '<th></th>' +
+                        displayed_activities.map(function(a) {
+                            return '<th>' + a.activity_name + '</th>';
+                        }).join('') +
+                        '</tr>');
+
+    var table_rows = cache.summary
+        .groupBy(row => row.summary_window)
+        .map(function(rows) {
+            var summary_window = rows[0].summary_window;
+
+            return ('<tr>' +
+                    '<th>' + summary_window + '</th>' +
+                    displayed_activities
+                    .map(function(a) {
+                        var activity_rows = rows.filter(row => a.activity_id == row.activity_id);
+                        if(activity_rows.length==1) {
+                            var desc = activity_rows[0].time_spent;
+                        } else {
+                            var desc = '';
+                        }
+                        return ('<td class=time-span-entry>' +
+                                desc +
+                                '</td>');
+                    }).join('') +
+                    '</tr>');
+        }).join('');
+
+    var table =  ('<table border="1">' +
+                  table_header +
+                  table_rows +
+                  '</table>');
+
+    document.getElementById('recent-activity-tables').innerHTML = table;
 }
 
 function main() {
