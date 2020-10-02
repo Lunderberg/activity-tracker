@@ -296,9 +296,24 @@ def summarize_recent_activity(conn, user_id, summary_windows, as_str=False):
         output = [row._asdict() for row in cur.fetchall()]
 
     if as_str:
-        for log in output:
-            log['summary_window'] = timedelta_format(log['summary_window'])
-            log['time_spent'] = timedelta_format(log['time_spent'])
+        for row in output:
+            row['summary_window'] = timedelta_format(row['summary_window'])
+            row['time_spent'] = timedelta_format(row['time_spent'])
+
+    return output
+
+
+def summarize_by_day(conn, user_id, as_primitive=False):
+    with conn, conn.cursor() as cur:
+        cur.execute(get_query('summarize_by_day'),
+                    dict(user_id = user_id))
+        output = [row._asdict() for row in cur.fetchall()]
+
+    if as_primitive:
+        for row in output:
+            row['window_start'] = str(row['window_start'])
+            row['window_end'] = str(row['window_end'])
+            row['time_spent'] = row['time_spent'].total_seconds()
 
     return output
 
@@ -365,20 +380,23 @@ class IndexHtml(DatabaseWebHandler):
 
             activities = read_activity_map(self.conn, user_id)
             logs = read_logs(self.conn, user_id, num_days=8, as_str=True)
-            summary = summarize_recent_activity(
+            summary_recent = summarize_recent_activity(
                 self.conn, user_id,
                 summary_windows = [datetime.timedelta(days=d) for d in [1,7,30]],
                 as_str = True,
             )
+            summary_by_day = summarize_by_day(self.conn, user_id, as_primitive=True)
         else:
             activities = []
             logs = []
             summary = []
+            summary_by_day = []
 
         cache = {'signed_in': signed_in,
                  'activities': activities,
                  'logs': logs,
-                 'summary': summary,
+                 'summary_recent': summary_recent,
+                 'summary_by_day': summary_by_day,
         }
         cache_definition = "var cache = {};".format(json.dumps(cache))
         dummy_text = "console.log('template not replaced');"

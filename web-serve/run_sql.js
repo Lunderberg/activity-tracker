@@ -315,15 +315,20 @@ function load_history() {
     update_current_activity();
     update_weekly_view();
     update_recent_activity_table();
-    // update_daily_chart();
+    update_daily_chart();
 }
 
-function update_cache_log_details() {
-    var activity_map = {}
+function get_activity_map() {
+    var activity_map = {};
     cache.activities.forEach(function(a) {
         activity_map[a.activity_id] = {name: a.activity_name,
                                        color: a.activity_color};
     });
+    return activity_map;
+}
+
+function update_cache_log_details() {
+    var activity_map = get_activity_map();
 
     // Add extra info to the logs, for ease of use later.
     cache.logs = cache.logs
@@ -454,11 +459,7 @@ function plot_weekly_view(div, first_day, last_day) {
 }
 
 function update_recent_activity_table() {
-    var activity_map = {}
-    cache.activities.forEach(function(a) {
-        activity_map[a.activity_id] = {name: a.activity_name,
-                                       color: a.activity_color};
-    });
+    var activity_map = get_activity_map();
 
     var displayed_activities = cache.activities.filter(a => a.display);
 
@@ -469,7 +470,7 @@ function update_recent_activity_table() {
                         }).join('') +
                         '</tr>');
 
-    var table_rows = cache.summary
+    var table_rows = cache.summary_recent
         .groupBy(row => row.summary_window)
         .map(function(rows) {
             var summary_window = rows[0].summary_window;
@@ -497,6 +498,43 @@ function update_recent_activity_table() {
                   '</table>');
 
     document.getElementById('recent-activity-tables').innerHTML = table;
+}
+
+function update_daily_chart() {
+    var activity_map = get_activity_map();
+
+    var data = cache.summary_by_day
+        .groupBy(row => row.activity_id)
+        .map(function(periods) {
+            var activity_id = periods[0].activity_id;
+
+            var period_centers = periods.map(function(p) {
+                var window_start = new Date(p.window_start);
+                var window_end = new Date(p.window_end);
+                return new Date( (window_start.getTime() +
+                                  window_end.getTime())/2 );
+            });
+
+            var durations = periods.map(p => p.time_spent / 3600);
+
+            var color = activity_map[activity_id].color;
+            var name = activity_map[activity_id].name;
+
+            return {type: 'scatter',
+                    mode: 'markers',
+                    x: period_centers,
+                    y: durations,
+                    name: name,
+                    marker: {color: color},
+                    line: {color: color},
+                   };
+        });
+
+    var layout = {
+        title: 'Daily Duration (hours)',
+    };
+
+    Plotly.newPlot("daily-activities", data, layout);
 }
 
 function main() {

@@ -22,10 +22,7 @@ FROM
     SELECT
        d.*
       ,t.*
-      ,CASE WHEN t.txn_date > CURRENT_TIMESTAMP - d.summary_window
-       THEN t.txn_date
-       ELSE CURRENT_TIMESTAMP - d.summary_window
-       END
+      ,GREATEST(t.txn_date, CURRENT_TIMESTAMP - d.summary_window)
        AS activity_start
       ,LEAD(t.txn_date, 1, CURRENT_TIMESTAMP) OVER (
           PARTITION BY t.user_id,d.summary_window
