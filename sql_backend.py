@@ -228,6 +228,16 @@ def load_text_file(conn, user_id, text_filepath):
         psycopg2.extras.execute_batch(
             cur, get_query('insert_transaction'), batch_params)
 
+def insert_transaction(conn, user_id, activity_id, txn_date=None):
+    if txn_date is None:
+        txn_date = datetime.datetime.now()
+
+    with conn, conn.cursor() as cur:
+        cur.execute(get_query('insert_transaction'),
+                    dict(user_id = user_id,
+                         activity_id = activity_id,
+                         txn_date = txn_date))
+
 
 def read_logs(conn, user_id,
               min_time=None, max_time=None, num_days=None,
@@ -318,6 +328,30 @@ def summarize_by_day(conn, user_id, as_primitive=False):
     return output
 
 
+
+
+def get_cache_data(conn, user_id, signed_in=True):
+    if signed_in:
+        return {'signed_in': signed_in,
+                'activities': read_activity_map(conn, user_id),
+                'logs': read_logs(conn, user_id, num_days=8, as_str=True),
+                'summary_recent': summarize_recent_activity(
+                    conn, user_id,
+                    summary_windows = [datetime.timedelta(days=d) for d in [1,7,30]],
+                    as_str = True,
+                ),
+                'summary_by_day': summarize_by_day(conn, user_id, as_primitive=True),
+        }
+    else:
+        return {'signed_in': signed_in,
+                'activities': [],
+                'logs': [],
+                'summary_recent': [],
+                'summary_by_day': [],
+        }
+
+
+
 class DatabaseWebHandler(tornado.web.RequestHandler):
     def initialize(self, database):
         self.database = database
@@ -374,30 +408,10 @@ class IndexHtml(DatabaseWebHandler):
             html = f.read()
 
         signed_in = self.validate_session_id()
+        user_id = self.get_cookie('user_id')
 
-        if signed_in:
-            user_id = self.get_cookie('user_id')
+        cache = get_cache_data(self.conn, user_id, signed_in)
 
-            activities = read_activity_map(self.conn, user_id)
-            logs = read_logs(self.conn, user_id, num_days=8, as_str=True)
-            summary_recent = summarize_recent_activity(
-                self.conn, user_id,
-                summary_windows = [datetime.timedelta(days=d) for d in [1,7,30]],
-                as_str = True,
-            )
-            summary_by_day = summarize_by_day(self.conn, user_id, as_primitive=True)
-        else:
-            activities = []
-            logs = []
-            summary = []
-            summary_by_day = []
-
-        cache = {'signed_in': signed_in,
-                 'activities': activities,
-                 'logs': logs,
-                 'summary_recent': summary_recent,
-                 'summary_by_day': summary_by_day,
-        }
         cache_definition = "var cache = {};".format(json.dumps(cache))
         dummy_text = "console.log('template not replaced');"
         html = html.replace(dummy_text, cache_definition)
@@ -410,13 +424,20 @@ class IndexHtml(DatabaseWebHandler):
 
 class RecordTransaction(DatabaseWebHandler):
     def post(self):
-        now = datetime.datetime.now()
-        activity = self.get_argument('activity')
+        if not self.validate_session_id():
+            return
 
-        entry = '{}\t{}\n'.format(now.isoformat(), activity)
+        user_id = self.get_cookie('user_id')
+
+        params = json.loads(self.request.body.decode('utf-8'))
+        activity_id = params['activity_id']
+
+        insert_transaction(self.conn, user_id, activity_id)
+
+        cache_data = get_cache_data(self.conn, user_id)
 
         self.set_header('Content-type', 'text/html')
-        self.write(entry)
+        self.write(json.dumps(cache_data))
 
 
 

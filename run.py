@@ -28,7 +28,7 @@ def make_app(database):
               web_serve_path = web_serve_path),
         ),
 
-        ('/cgi-bin/record-value.py',
+        ('/record_transaction',
          sql_backend.RecordTransaction,
          dict(database = database),
         ),

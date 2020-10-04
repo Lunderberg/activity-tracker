@@ -264,29 +264,30 @@ function generate_buttons() {
         var button = document.querySelector('#submit-activity-'+act.activity_id);
         button.style.backgroundColor = act.activity_color;
 
-        var argument = button.value;
+        var params = {activity_id: +button.value};
 
-        // function callback() {
-        //     var req = new XMLHttpRequest();
-        //     req.open('POST', 'cgi-bin/record-value.py', true);
+        function callback() {
+            var req = new XMLHttpRequest();
+            req.open('POST', 'record_transaction', true);
 
-        //     req.setRequestHeader('Content-type',
-        //                          'application/x-www-form-urlencoded');
+            req.setRequestHeader('Content-type',
+                                 'application/x-www-form-urlencoded');
 
-        //     req.onload = function() {
-        //         var text = '';
-        //         if(req.status === 200) {
-        //             load_history(req.responseText);
-        //         } else {
-        //             text = 'Could not submit, please retry';
-        //         }
-        //         document.getElementById('result').innerHTML = text;
-        //     };
+            req.onload = function() {
+                var text = '';
+                if(req.status === 200) {
+                    cache = JSON.parse(req.responseText);
+                    load_history();
+                } else {
+                    text = 'Could not submit, please retry';
+                }
+                document.getElementById('result').innerHTML = text;
+            }
 
-        //     req.send('activity='+argument);
-        // }
+            req.send(JSON.stringify(params));
+        }
 
-        // button.addEventListener('click', callback);
+        button.addEventListener('click', callback);
     });
 }
 
