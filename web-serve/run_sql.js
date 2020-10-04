@@ -348,7 +348,7 @@ function update_cache_log_details() {
             var text = (format_time(txn_date) +
                         " - " +
                         format_time(end_time) +
-                        ": " + name);
+                        ": " + activity_name);
 
             return {txn_date: txn_date,
                     end_time: end_time,
