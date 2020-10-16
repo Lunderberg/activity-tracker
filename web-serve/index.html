@@ -62,8 +62,42 @@
         </div>
       </div>
 
+
       <div id=edit-data-tab class="tab hidden">
-        Edit data tab
+        <fieldset>
+          <legend>Date Window Select</legend>
+          <div>
+            Start: <input id=edit-data-window-start
+                          type="datetime-local" value="2020-12-30T16:34">
+          </div>
+          <div>
+            End: <input id=edit-data-window-end
+                        type="datetime-local" value="2020-12-30T16:34">
+          </div>
+
+          <button id=edit-data-init>Start Editing</button>
+          <span id=edit-data-init-results></span>
+        </fieldset>
+
+        <fieldset id=edit-data-fieldset>
+          <legend>Edit Data</legend>
+
+          From <span id=edit-data-window-start-display></span>
+          to <span id=edit-data-window-end-display></span>
+
+          <table id=edit-data-table border="1">
+            <tr>
+              <th>Activity</th>
+              <th>Time Started</th>
+              <th></th>
+            </tr>
+          </table>
+
+          <button id=edit-data-submit>Submit</button>
+          <span id=edit-data-submit-results></span>
+        </fieldset>
+
+
       </div>
     </div>
 

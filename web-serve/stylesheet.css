@@ -52,3 +52,15 @@
     background-color: white;
     font-weight: bold;
 }
+
+fieldset {
+    width: 0px;
+}
+
+#edit-data-table {
+    width: 400px;
+}
+
+.edit-data-invalid-row {
+    background-color: lightsalmon;
+}

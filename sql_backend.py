@@ -265,7 +265,7 @@ def read_logs(conn, user_id,
 
     if as_str:
         for log in output:
-            log['txn_date'] = str(log['txn_date'])
+            log['txn_date'] = log['txn_date'].isoformat()
 
     return output
 
@@ -447,10 +447,20 @@ class ReadLogs(DatabaseWebHandler):
             return
 
         user_id = self.get_cookie('user_id')
-        logs = read_logs(self.conn, user_id, num_days = 8, as_str=True)
+
+        window_start = dateutil.parser.parse(self.get_argument('window-start'))
+        window_end = dateutil.parser.parse(self.get_argument('window-end'))
+        logs = read_logs(self.conn, user_id,
+                         min_time = window_start,
+                         max_time = window_end,
+                         as_str=True)
+
+        output = {'window_start': window_start.isoformat(),
+                  'window_end': window_end.isoformat(),
+                  'logs': logs}
 
         self.set_header('Content-type', 'text/html')
-        self.write(json.dumps(logs))
+        self.write(json.dumps(output))
 
 class LogIn(DatabaseWebHandler):
     def post(self):

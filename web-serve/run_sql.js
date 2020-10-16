@@ -39,7 +39,10 @@ function connect_callbacks() {
 
     document
         .getElementById('button-edit-data-tab')
-        .addEventListener('click', () => show_tab('edit-data-tab'));
+        .addEventListener('click', () => {
+            reset_edit_data_tab();
+            show_tab('edit-data-tab');
+        });
 
     document
         .getElementById('add-new-activity-row')
@@ -48,6 +51,10 @@ function connect_callbacks() {
     document
         .getElementById('submit-activity-settings')
         .addEventListener('click', submit_activity_settings);
+
+    document
+        .getElementById('edit-data-init')
+        .addEventListener('click', edit_data_init);
 }
 
 // From https://stackoverflow.com/a/1714899/2689797
@@ -270,8 +277,7 @@ function generate_buttons() {
             var req = new XMLHttpRequest();
             req.open('POST', 'record_transaction', true);
 
-            req.setRequestHeader('Content-type',
-                                 'application/x-www-form-urlencoded');
+            req.setRequestHeader('Content-type', 'application/json');
 
             req.onload = function() {
                 var text = '';
@@ -538,6 +544,155 @@ function update_daily_chart() {
     Plotly.newPlot("daily-activities", data, layout);
 }
 
+function local_time(d) {
+    var d = new Date(d);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    d = d.toISOString();
+    return d.substr(0, d.length-1);
+}
+
+function reset_edit_data_tab() {
+    document.getElementById('edit-data-fieldset').classList.add('hidden');
+
+    var now = new Date();
+
+    var window_start = new Date(now);
+    window_start.setDate(window_start.getDate()-1);
+    document.getElementById('edit-data-window-start').value = local_time(window_start);
+
+    var window_end = new Date(now);
+    window_end.setHours(window_end.getHours()+1);
+    document.getElementById('edit-data-window-end').value = local_time(window_end);
+}
+
+
+function edit_data_init() {
+    document
+        .getElementById('edit-data-init-results')
+        .innerHTML = 'Loading...';
+
+    // TODO: Time zones
+    var params = {
+        'window-start': document.getElementById('edit-data-window-start').value,
+        'window-end': document.getElementById('edit-data-window-end').value,
+    };
+
+    var req = new XMLHttpRequest();
+    req.open('GET', 'read_logs?' + encode_query_string(params), true);
+
+    req.setRequestHeader('Content-type', 'application/json');
+
+    req.onload = function() {
+        var text = '';
+        if(req.status === 200) {
+            var results = JSON.parse(req.responseText);
+            edit_data_load_logs(results);
+        } else {
+            text = 'Could not get, please retry';
+        }
+        document.getElementById('edit-data-init-results').innerHTML = text;
+    }
+
+    req.send();
+}
+
+var edit_data_window = {};
+function edit_data_load_logs(results) {
+    var table = document.getElementById('edit-data-table');
+    var activity_map = get_activity_map();
+
+    edit_data_window['min'] = new Date(results.window_start);
+    edit_data_window['max'] = new Date(results.window_end);
+    document
+        .getElementById('edit-data-window-start-display')
+        .innerHTML = local_time(results.window_start);
+
+    document
+        .getElementById('edit-data-window-end-display')
+        .innerHTML = local_time(results.window_end);
+
+
+    table
+        .querySelectorAll('tr')
+        .filter(row => row.querySelector('th')===null )
+        .forEach(row => row.remove())
+    ;
+
+    function generate_select_tag(activity_id) {
+        var options = cache.activities
+            .filter(a => a.display || (a.activity_id===activity_id))
+            .map(a => {
+            var selected = a.activity_id===activity_id ? 'selected' : '';
+            return `
+                <option value=${a.activity_id} ${selected}>
+                   ${a.activity_name}
+                </option>
+            `;
+        }).join('');
+
+        return `<select>${options}</select>`;
+    }
+
+    // TODO: Time zones
+    results.logs
+        .forEach(row => {
+            row.txn_date = row.txn_date.substr(0,19);
+        });
+
+    results.logs
+        .forEach(row => {
+            var new_row = table.insertRow(-1);
+            var select_tag = generate_select_tag(row.activity_id);
+            new_row.innerHTML = `
+                 <td>${select_tag}</td>
+                <td><input type="datetime-local" value="${row.txn_date}" step=1></td>
+                <td><button class='close-button'>&times;</button></td>
+            `;
+        });
+
+    table
+        .querySelectorAll('input[type=datetime-local]')
+        .forEach(box => {box.addEventListener('change', edit_data_reorder);
+                         box.addEventListener('change', edit_data_mark_invalid);
+                        });
+
+    table
+        .querySelectorAll('.close-button')
+        .forEach(button => button.addEventListener('click', e => e.target.closest('tr').remove() ));
+
+    document.getElementById('edit-data-fieldset').classList.remove('hidden');
+}
+
+function edit_data_reorder(event) {
+    var edited_row = event.target.closest('tr');
+    var table = edited_row.parentElement;
+
+    var edited_date = new Date(event.target.value);
+
+    table
+        .querySelectorAll('tr')
+        .filter( row => ((row.querySelector('th') === null) &
+                         (row !== edited_row)) )
+        .forEach( row =>  {
+            var row_date = new Date(row.querySelector('input[type=datetime-local]').value);
+            var new_loc = (row_date < edited_date) ? edited_row : null
+            table.insertBefore(row, new_loc);
+        });
+}
+
+function edit_data_mark_invalid(event) {
+    var edited_row = event.target.closest('tr');
+    var edited_date = new Date(event.target.value);
+
+    if(edited_date > edit_data_window['max'] ||
+       edited_date < edit_data_window['min']) {
+        edited_row.classList.add('edit-data-invalid-row');
+    } else {
+        edited_row.classList.remove('edit-data-invalid-row');
+    }
+}
+
+
 function main() {
     connect_callbacks();
 
@@ -550,6 +705,10 @@ function main() {
 
         load_history();
     }
+
+    reset_edit_data_tab();
+    show_tab('edit-data-tab');
+    edit_data_init();
 }
 
 main();
