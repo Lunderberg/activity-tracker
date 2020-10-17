@@ -55,6 +55,10 @@ function connect_callbacks() {
     document
         .getElementById('edit-data-init')
         .addEventListener('click', edit_data_init);
+
+    document
+        .getElementById('edit-data-new-row')
+        .addEventListener('click', add_new_row);
 }
 
 // From https://stackoverflow.com/a/1714899/2689797
@@ -596,6 +600,39 @@ function edit_data_init() {
     req.send();
 }
 
+
+
+function edit_data_generate_row(activity_id, timestamp) {
+    var row = document.createElement('tr');
+
+    var select_options = cache.activities
+        .filter(a => a.display || (a.activity_id===activity_id))
+        .map(a => {
+            var selected = a.activity_id===activity_id ? 'selected' : '';
+            return `
+                <option value=${a.activity_id} ${selected}>
+                   ${a.activity_name}
+                </option>
+            `;
+        }).join('');
+
+    row.innerHTML = `
+        <td><select>${select_options}</select></td>
+        <td><input type="datetime-local" value="${timestamp}" step=1></td>
+        <td><button class='close-button'>&times;</button></td>
+    `;
+
+    var time_input = row.querySelector('input[type=datetime-local]');
+    time_input.addEventListener('change', edit_data_reorder);
+    time_input.addEventListener('change', edit_data_mark_invalid);
+
+    row
+        .querySelector('.close-button')
+        .addEventListener('click', e => row.remove());
+
+    return row;
+}
+
 var edit_data_window = {};
 function edit_data_load_logs(results) {
     var table = document.getElementById('edit-data-table');
@@ -618,47 +655,18 @@ function edit_data_load_logs(results) {
         .forEach(row => row.remove())
     ;
 
-    function generate_select_tag(activity_id) {
-        var options = cache.activities
-            .filter(a => a.display || (a.activity_id===activity_id))
-            .map(a => {
-            var selected = a.activity_id===activity_id ? 'selected' : '';
-            return `
-                <option value=${a.activity_id} ${selected}>
-                   ${a.activity_name}
-                </option>
-            `;
-        }).join('');
-
-        return `<select>${options}</select>`;
-    }
-
     // TODO: Time zones
     results.logs
         .forEach(row => {
             row.txn_date = row.txn_date.substr(0,19);
         });
 
+
     results.logs
         .forEach(row => {
-            var new_row = table.insertRow(-1);
-            var select_tag = generate_select_tag(row.activity_id);
-            new_row.innerHTML = `
-                 <td>${select_tag}</td>
-                <td><input type="datetime-local" value="${row.txn_date}" step=1></td>
-                <td><button class='close-button'>&times;</button></td>
-            `;
+            var new_row = edit_data_generate_row(row.activity_id, row.txn_date);
+            table.insertBefore(new_row, null);
         });
-
-    table
-        .querySelectorAll('input[type=datetime-local]')
-        .forEach(box => {box.addEventListener('change', edit_data_reorder);
-                         box.addEventListener('change', edit_data_mark_invalid);
-                        });
-
-    table
-        .querySelectorAll('.close-button')
-        .forEach(button => button.addEventListener('click', e => e.target.closest('tr').remove() ));
 
     document.getElementById('edit-data-fieldset').classList.remove('hidden');
 }
@@ -690,6 +698,18 @@ function edit_data_mark_invalid(event) {
     } else {
         edited_row.classList.remove('edit-data-invalid-row');
     }
+}
+
+function add_new_row() {
+    var table = document.getElementById('edit-data-table');
+    var activity_id = cache.activities.filter(row => row.display)[0];
+    var now = new Date();
+
+
+    var txn_date = edit_data_window['max'];
+    var new_row = edit_data_generate_row(activity_id,
+                                         local_time(txn_date).substr(0,19));
+    table.insertBefore(new_row, null);
 }
 
 
