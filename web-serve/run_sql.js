@@ -58,7 +58,11 @@ function connect_callbacks() {
 
     document
         .getElementById('edit-data-new-row')
-        .addEventListener('click', add_new_row);
+        .addEventListener('click', edit_data_add_new_row);
+
+    document
+        .getElementById('edit-data-submit')
+        .addEventListener('click', edit_data_submit);
 }
 
 // From https://stackoverflow.com/a/1714899/2689797
@@ -617,8 +621,15 @@ function edit_data_generate_row(activity_id, timestamp) {
         }).join('');
 
     row.innerHTML = `
-        <td><select>${select_options}</select></td>
-        <td><input type="datetime-local" value="${timestamp}" step=1></td>
+        <td>
+            <select class=edit-data-select-activity>
+                 ${select_options}
+            </select>
+        </td>
+        <td>
+            <input class=edit-data-set-time
+                   type="datetime-local" value="${timestamp}" step=1>
+        </td>
         <td><button class='close-button'>&times;</button></td>
     `;
 
@@ -700,7 +711,7 @@ function edit_data_mark_invalid(event) {
     }
 }
 
-function add_new_row() {
+function edit_data_add_new_row() {
     var table = document.getElementById('edit-data-table');
     var activity_id = cache.activities.filter(row => row.display)[0];
     var now = new Date();
@@ -710,6 +721,51 @@ function add_new_row() {
     var new_row = edit_data_generate_row(activity_id,
                                          local_time(txn_date).substr(0,19));
     table.insertBefore(new_row, null);
+}
+
+function edit_data_submit() {
+    var table = document.getElementById('edit-data-table');
+    var status_span = document.getElementById('edit-data-submit-results');
+
+    var new_activities = table
+        .querySelectorAll('tr')
+        .filter(row => row.querySelector('th') === null)
+        .map(row => ({activity_id: (row
+                                    .querySelector('.edit-data-select-activity')
+                                    .value
+                                   ),
+                      txn_date: (row
+                                 .querySelector('.edit-data-set-time')
+                                 .value
+                                ),
+                     }))
+    ;
+
+    params = {
+        window_min: local_time(edit_data_window['min']),
+        window_max: local_time(edit_data_window['max']),
+        activities: new_activities,
+    }
+
+    var req = new XMLHttpRequest();
+
+    function on_results() {
+        var text = '';
+        if((req.status >= 200) && (req.status < 300)) {
+            cache = JSON.parse(req.responseText);
+            load_history();
+            show_tab('activity-info-tab');
+        } else {
+            text = 'Could not submit, please retry';
+        }
+        status_span.innerHTML = text;
+    }
+
+    status_span.innerHTML = 'Sending update.';
+
+    req.addEventListener('load', on_results);
+    req.open('POST', '/edit_data');
+    req.send(JSON.stringify(params));
 }
 
 

@@ -58,6 +58,11 @@ def make_app(database):
          dict(database = database),
         ),
 
+        ('/edit_data',
+         sql_backend.EditData,
+         dict(database = database),
+         ),
+
         (r'/(.*)', Handler, {'path': web_serve_path}),
     ])
 

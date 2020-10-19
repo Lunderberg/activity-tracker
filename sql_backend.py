@@ -239,6 +239,28 @@ def insert_transaction(conn, user_id, activity_id, txn_date=None):
                          txn_date = txn_date))
 
 
+def overwrite_transactions(conn, user_id, window_range, new_transactions):
+    for txn in new_transactions:
+        if not (window_range[0] <= txn['txn_date'] <= window_range[1]):
+            raise ValueError('Replacement transaction not in range')
+
+    batch_params = [ {'user_id': user_id,
+                      'activity_id': txn['activity_id'],
+                      'txn_date': txn['txn_date'],
+                      }
+                     for txn in new_transactions]
+
+    with conn, conn.cursor() as cur:
+        cur.execute(get_query('delete_transactions'),
+                    dict(user_id = user_id,
+                         window_start = window_range[0],
+                         window_end = window_range[1]))
+
+        psycopg2.extras.execute_batch(
+            cur, get_query('insert_transaction'), batch_params)
+
+
+
 def read_logs(conn, user_id,
               min_time=None, max_time=None, num_days=None,
               as_str=False):
@@ -520,6 +542,31 @@ class UpdateSettings(DatabaseWebHandler):
 
         update_activities(self.conn, user_id, params)
 
+
+class EditData(DatabaseWebHandler):
+    def post(self):
+        if not self.validate_session_id():
+            return
+
+        user_id = self.get_cookie('user_id')
+        params = json.loads(self.request.body.decode('utf-8'))
+
+        window_range = (dateutil.parser.parse(params['window_min']),
+                        dateutil.parser.parse(params['window_max']))
+
+        new_transactions = [
+            {'activity_id': int(txn['activity_id']),
+             'txn_date': dateutil.parser.parse(txn['txn_date']),
+             }
+            for txn in params['activities']
+        ]
+
+        overwrite_transactions(self.conn, user_id,
+                               window_range, new_transactions)
+
+        cache_data = get_cache_data(self.conn, user_id)
+        self.set_header('Content-type', 'text/html')
+        self.write(json.dumps(cache_data))
 
 
 def main():
