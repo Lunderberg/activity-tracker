@@ -105,7 +105,7 @@ function log_in() {
 
         if((req.status >= 200) && (req.status < 300)) {
             var params = JSON.parse(req.response);
-            if(params['session_id'] !== null) {
+            if(params['signed_in']) {
                 show_activity_info();
                 success = true;
             }
@@ -195,6 +195,12 @@ function standardize_color(str){
 function init_activity_display() {
     var table = document.getElementById('edit-activity-table');
 
+    table
+        .querySelectorAll('tr')
+        .filter(row => row.querySelector('th')===null )
+        .forEach(row => row.remove())
+    ;
+
     cache.activities.forEach( (row) => {
         var color = standardize_color(row.activity_color);
 
@@ -243,6 +249,7 @@ function submit_activity_settings() {
         if((req.status >= 200) && (req.status < 300)) {
             status_div.innerHTML = 'Update success.';
             cache.activities = params;
+            redraw_from_cache();
         } else {
             status_div.innerHTML = 'Update failed, ' + req.status + '.';
         }
@@ -291,7 +298,7 @@ function generate_buttons() {
                 var text = '';
                 if(req.status === 200) {
                     cache = JSON.parse(req.responseText);
-                    load_history();
+                    redraw_from_cache();
                 } else {
                     text = 'Could not submit, please retry';
                 }
@@ -322,15 +329,6 @@ function format_span(span) {
     return ((hours===0 ? '' : hours+'h') +
             (minutes===0 ? '' : minutes+'m') +
             (seconds+'s'));
-}
-
-function load_history() {
-    update_cache_log_details();
-
-    update_current_activity();
-    update_weekly_view();
-    update_recent_activity_table();
-    update_daily_chart();
 }
 
 function get_activity_map() {
@@ -753,7 +751,7 @@ function edit_data_submit() {
         var text = '';
         if((req.status >= 200) && (req.status < 300)) {
             cache = JSON.parse(req.responseText);
-            load_history();
+            redraw_from_cache();
             show_tab('activity-info-tab');
         } else {
             text = 'Could not submit, please retry';
@@ -768,23 +766,27 @@ function edit_data_submit() {
     req.send(JSON.stringify(params));
 }
 
-
-function main() {
-    connect_callbacks();
-
+function redraw_from_cache() {
     if(cache.signed_in) {
-        // TODO: Group these into behavior to be done on login, not
-        // just on page load.
         show_activity_info();
         generate_buttons();
         init_activity_display();
 
-        load_history();
-    }
+        update_cache_log_details();
 
-    reset_edit_data_tab();
-    show_tab('edit-data-tab');
-    edit_data_init();
+        update_current_activity();
+        update_weekly_view();
+        update_recent_activity_table();
+        update_daily_chart();
+    } else {
+        hide_activity_info();
+    }
+}
+
+
+function main() {
+    connect_callbacks();
+    redraw_from_cache();
 }
 
 main();

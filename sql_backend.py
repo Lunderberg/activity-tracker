@@ -493,22 +493,19 @@ class LogIn(DatabaseWebHandler):
         self.set_header('Content-type', 'text/html')
 
         if results['session_counter'] is None:
+            signed_in = False
             self.clear_cookie('user_id')
             self.clear_cookie('session_counter')
             self.clear_cookie('session_id')
         else:
+            signed_in = True
             self.set_cookie('user_id', results['user_id'])
             self.set_cookie('session_counter', str(results['session_counter']))
             self.set_cookie('session_id', results['session_id'])
 
-
-        return_params = {
-            'password_matches': results['password_matches'],
-            'session_id': results['session_id'],
-            'session_counter': results['session_counter'],
-        }
-
-        self.write(json.dumps(return_params))
+        cache_data = get_cache_data(self.conn, results['user_id'], signed_in)
+        self.set_header('Content-type', 'text/html')
+        self.write(json.dumps(cache_data))
 
 
 class RefreshSession(DatabaseWebHandler):
