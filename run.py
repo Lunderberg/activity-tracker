@@ -2,75 +2,21 @@
 
 import argparse
 from glob import glob
-import os
 
 import tornado.httpserver
 import tornado.ioloop
 import tornado.log
-import tornado.web
 
 import sql_backend
-
-class Handler(tornado.web.StaticFileHandler):
-    def parse_url_path(self, url_path):
-        if not url_path or url_path.endswith('/'):
-            url_path += 'index.html'
-        return url_path
-
-def make_app(database):
-    web_serve_path = os.path.join(os.path.dirname(__file__),
-                                  'web-serve')
-
-    return tornado.web.Application([
-        ('/(index.html)?',
-         sql_backend.IndexHtml,
-         dict(database = database,
-              web_serve_path = web_serve_path),
-        ),
-
-        ('/record_transaction',
-         sql_backend.RecordTransaction,
-         dict(database = database),
-        ),
-
-        ('/read_logs',
-         sql_backend.ReadLogs,
-         dict(database = database),
-        ),
-
-        ('/log_in',
-         sql_backend.LogIn,
-         dict(database = database),
-        ),
-
-        ('/log_out',
-         sql_backend.LogOut,
-         dict(database = database),
-        ),
-
-        ('/refresh',
-         sql_backend.RefreshSession,
-         dict(database = database),
-        ),
-
-        ('/update_settings',
-         sql_backend.UpdateSettings,
-         dict(database = database),
-        ),
-
-        ('/edit_data',
-         sql_backend.EditData,
-         dict(database = database),
-         ),
-
-        (r'/(.*)', Handler, {'path': web_serve_path}),
-    ])
+import tornado_sql
 
 def run(database, port, use_ssl=True):
-    sql_backend.initial_setup(database)
+    conn = sql_backend.make_connection(database)
+
+    sql_backend.initial_setup(conn)
 
     tornado.log.enable_pretty_logging()
-    app = make_app(database)
+    app = tornado_sql.make_app(conn)
 
     opts = {}
     if use_ssl:
@@ -86,7 +32,7 @@ def run(database, port, use_ssl=True):
 
 
     daily_purge = tornado.ioloop.PeriodicCallback(
-        sql_backend.purge_old_session_ids,
+        lambda :sql_backend.purge_old_session_ids(conn),
         24*60*60*1000,
     )
     daily_purge.start()
@@ -115,4 +61,9 @@ def main():
     
 
 if __name__=='__main__':
-    main()
+    try:
+        main()
+    except Exception:
+        import pdb, traceback
+        traceback.print_exc()
+        pdb.post_mortem()

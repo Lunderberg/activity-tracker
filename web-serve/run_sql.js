@@ -440,7 +440,7 @@ function plot_weekly_view(div, first_day, last_day) {
         minute_of_day.forEach(function(minute, j) {
             date.setHours(0, minute);
 
-            if(date > now) {
+            if(date > now || i_entry >= cache.logs.length) {
                 return;
             }
 
@@ -448,6 +448,7 @@ function plot_weekly_view(div, first_day, last_day) {
                   cache.logs[i_entry+1].txn_date < date) {
                 i_entry++;
             }
+
             var entry = cache.logs[i_entry];
 
             if(date < entry.end_time) {
