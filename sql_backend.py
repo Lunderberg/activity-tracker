@@ -5,11 +5,10 @@ import bcrypt
 import datetime
 import functools
 import os
+import sqlite3
+import uuid
 
 import dateutil.parser
-
-import psycopg2
-import psycopg2.extras
 
 session_timeout_days = 2
 
@@ -22,28 +21,34 @@ def get_query(name):
     )
     return open(filename).read()
 
-def make_connection(database):
-    conn = psycopg2.connect(
-        database=database,
-        cursor_factory=psycopg2.extras.NamedTupleCursor)
+def make_connection(database = None):
+    if database is None:
+        database = os.path.join(os.path.dirname(__file__), 'activities.db')
+
+    conn = sqlite3.connect(database, detect_types=sqlite3.PARSE_DECLTYPES)
+    conn.row_factory = sqlite3.Row
     return conn
 
 
 def initial_setup(conn):
-    with conn, conn.cursor() as cur:
-        cur.execute(get_query('initial_setup'))
+    with conn:
+        conn.executescript(get_query('initial_setup'))
 
 
 def create_user(conn, username, password, email_address = None):
     salt = bcrypt.gensalt()
     hashed_pw = bcrypt.hashpw(password, salt)
+    user_id = str(uuid.uuid4())
 
-    with conn, conn.cursor() as cur:
-        cur.execute(get_query('create_user'),
-                    dict(username = username,
-                         hashed_pw = hashed_pw,
-                         email_address = email_address,
-                         ))
+    with conn:
+        conn.execute(get_query('create_user'),
+                     dict(user_id=user_id,
+                          username = username,
+                          hashed_pw = hashed_pw,
+                          email_address = email_address,
+                          ))
+
+    setup_default_activities(conn, user_id)
 
 def setup_default_activities(conn, user_id):
     update_activities(conn, user_id,
@@ -84,9 +89,9 @@ def generate_session_id():
 
 
 def log_in(conn, username, password):
-    with conn, conn.cursor() as cur:
-        cur.execute(get_query('look_up_user'),
-                    dict(username = username))
+    with conn:
+        cur = conn.execute(get_query('look_up_user'),
+                           dict(username = username))
         record = cur.fetchone()
 
 
@@ -103,8 +108,8 @@ def log_in(conn, username, password):
     if record is None:
         return output
 
-    output['user_id'] = record.user_id
-    password_matches = bcrypt.checkpw(password, record.hashed_pw)
+    output['user_id'] = record['user_id']
+    password_matches = bcrypt.checkpw(password, record['hashed_pw'])
     output['password_matches'] = password_matches
 
     if not password_matches:
@@ -120,23 +125,22 @@ def log_in(conn, username, password):
     salt = bcrypt.gensalt()
     hashed_session_id = bcrypt.hashpw(session_id, salt)
 
-    with conn, conn.cursor() as cur:
-        cur.execute(get_query('new_session'),
-                    dict(user_id = record.user_id,
-                         hashed_session_id = hashed_session_id,
-                         session_expiration = session_expiration,
-                    ))
-        result = cur.fetchone()
-        output['session_counter'] = result.session_counter
+    with conn:
+        cur = conn.execute(get_query('new_session'),
+                           dict(user_id = record['user_id'],
+                                hashed_session_id = hashed_session_id,
+                                session_expiration = session_expiration,
+                                ))
+        output['session_counter'] = cur.lastrowid
 
     return output
 
 
 def check_session_id(conn, user_id, session_counter, session_id):
-    with conn, conn.cursor() as cur:
-        cur.execute(get_query('look_up_session'),
-                    dict(session_counter = session_counter,
-                         user_id = user_id))
+    with conn:
+        cur = conn.execute(get_query('look_up_session'),
+                           dict(session_counter = session_counter,
+                                user_id = user_id))
         record = cur.fetchone()
 
     output = {
@@ -150,12 +154,12 @@ def check_session_id(conn, user_id, session_counter, session_id):
     else:
         return output
 
-    if bcrypt.checkpw(session_id, record.hashed_session_id):
+    if bcrypt.checkpw(session_id, record['hashed_session_id']):
         output['has_correct_session_id'] = True
     else:
         return output
 
-    if record.session_active:
+    if record['session_active']:
         output['session_active'] = True
     else:
         return output
@@ -164,52 +168,51 @@ def check_session_id(conn, user_id, session_counter, session_id):
 
 
 def purge_old_session_ids(conn):
-    with conn, conn.cursor() as cur:
-        cur.execute(get_query('purge_old_session_ids'))
+    with conn:
+        conn.execute(get_query('purge_old_session_ids'))
 
 
 def log_out(conn, user_id, session_counter, session_id):
     res = check_session_id(conn, user_id, session_counter, session_id)
 
     if res['session_counter_exists']:
-        with conn, conn.cursor() as cur:
-            cur.execute(get_query('delete_session'),
-                        dict(session_counter = session_counter))
+        with conn:
+            conn.execute(get_query('delete_session'),
+                         dict(session_counter = session_counter))
 
 
 def extend_session(conn, session_counter):
     session_expiration = (datetime.datetime.now() +
                           datetime.timedelta(days=session_timeout_days))
-    with conn, conn.cursor() as cur:
-        cur.execute(get_query('extend_session'),
-                    dict(session_counter = session_counter,
-                         session_expiration = session_expiration))
+    with conn:
+        conn.execute(get_query('extend_session'),
+                     dict(session_counter = session_counter,
+                          session_expiration = session_expiration))
 
 
 def update_activities(conn, user_id, params):
-    with conn, conn.cursor() as cur:
+    with conn:
         batch_params = [{'user_id': user_id,
                          'activity_id': i,
                          'activity_name': p['activity_name'],
                          'activity_color': p['activity_color'],
                          'display': p['display']}
                        for i,p in enumerate(params)]
-        psycopg2.extras.execute_batch(
-            cur, get_query('update_activity'), batch_params)
+        conn.executemany(get_query('update_activity'), batch_params)
 
 
 def read_activity_map(conn, user_id):
-    with conn, conn.cursor() as cur:
-        cur.execute(get_query('read_activity_map'),
-                    dict(user_id = user_id))
-        return [row._asdict() for row in cur.fetchall()]
+    with conn:
+        cur = conn.execute(get_query('read_activity_map'),
+                           dict(user_id = user_id))
+        return [dict(row) for row in cur.fetchall()]
 
 
 def load_text_file(conn, user_id, text_filepath):
     activity_map = {d['activity_name']:d['activity_id']
                     for d in read_activity_map(conn, user_id)}
 
-    with conn, conn.cursor() as cur, open(text_filepath) as f:
+    with conn, open(text_filepath) as f:
         batch_params = []
         for line in f:
             line = line.split()
@@ -222,18 +225,17 @@ def load_text_file(conn, user_id, text_filepath):
                     'activity_id': activity_map[activity],
                 })
 
-        psycopg2.extras.execute_batch(
-            cur, get_query('insert_transaction'), batch_params)
+        conn.executemany(get_query('insert_transaction'), batch_params)
 
 def insert_transaction(conn, user_id, activity_id, txn_date=None):
     if txn_date is None:
         txn_date = datetime.datetime.now()
 
-    with conn, conn.cursor() as cur:
-        cur.execute(get_query('insert_transaction'),
-                    dict(user_id = user_id,
-                         activity_id = activity_id,
-                         txn_date = txn_date))
+    with conn:
+        conn.execute(get_query('insert_transaction'),
+                     dict(user_id = user_id,
+                          activity_id = activity_id,
+                          txn_date = txn_date))
 
 
 def overwrite_transactions(conn, user_id, window_range, new_transactions):
@@ -247,14 +249,13 @@ def overwrite_transactions(conn, user_id, window_range, new_transactions):
                       }
                      for txn in new_transactions]
 
-    with conn, conn.cursor() as cur:
-        cur.execute(get_query('delete_transactions'),
-                    dict(user_id = user_id,
-                         window_start = window_range[0],
-                         window_end = window_range[1]))
+    with conn:
+        conn.execute(get_query('delete_transactions'),
+                     dict(user_id = user_id,
+                          window_start = window_range[0],
+                          window_end = window_range[1]))
 
-        psycopg2.extras.execute_batch(
-            cur, get_query('insert_transaction'), batch_params)
+        conn.executemany(get_query('insert_transaction'), batch_params)
 
 
 
@@ -275,12 +276,12 @@ def read_logs(conn, user_id,
         max_time = datetime.datetime.now()
 
 
-    with conn, conn.cursor() as cur:
-        cur.execute(get_query('read_logs'),
-                    dict(user_id = user_id,
-                         min_time = min_time,
-                         max_time = max_time))
-        output = [row._asdict() for row in cur.fetchall()]
+    with conn:
+        cur = conn.execute(get_query('read_logs'),
+                           dict(user_id = user_id,
+                                min_time = min_time,
+                                max_time = max_time))
+        output = [dict(row) for row in cur.fetchall()]
 
     if as_str:
         for log in output:
@@ -310,19 +311,23 @@ def timedelta_format(dt):
     return fdiff
 
 def summarize_recent_activity(conn, user_id, summary_windows, as_str=False):
-    summary_windows = {'summary_window{}'.format(i):d
-                       for i,d in enumerate(summary_windows)}
+    summary_windows = {'summary_window{}'.format(i)
+                       :
+                       '-{} seconds'.format(dt.total_seconds())
+
+                       for i,dt in enumerate(summary_windows)}
 
     query = (get_query('summarize_recent_activity')
-             .replace('(%(summary_window)s)',
-                      ','.join('(%({})s)'.format(k) for k in summary_windows))
+             .replace('(:summary_window)',
+                      ','.join('(:{})'.format(k) for k in summary_windows))
     )
     params = {'user_id': user_id,
               **summary_windows}
 
-    with conn, conn.cursor() as cur:
-        cur.execute(query, params)
-        output = [row._asdict() for row in cur.fetchall()]
+    with conn:
+        cur = conn.execute(query, params)
+        output = [dict(row) for row in cur.fetchall()]
+    import IPython; IPython.embed()
 
     if as_str:
         for row in output:
@@ -374,13 +379,50 @@ def get_cache_data(conn, user_id, signed_in=True):
 
 
 def main():
-    database = 'postgres'
-
-    conn = psycopg2.connect(database=database,
-                            cursor_factory=psycopg2.extras.NamedTupleCursor)
+    conn = make_connection()
     initial_setup(conn)
+
+    #create_user(conn, 'asdf', 'qwer')
+    #load_text_file(conn, user_id, 'record.txt')
+
+
+    res = log_in(conn, 'asdf', 'qwer')
+    user_id = res['user_id']
+
+    res_session = check_session_id(conn, user_id,
+                                   res['session_counter'],
+                                   res['session_id'])
+
+    extend_session(conn, res['session_counter'])
+
+    activity_map = read_activity_map(conn, user_id)
+
+    insert_transaction(conn, user_id, 0)
+
+    overwrite_transactions(
+        conn, user_id,
+        (datetime.datetime.now() - datetime.timedelta(days=1),
+         datetime.datetime.now()),
+        [{'activity_id': 0,
+          'txn_date': datetime.datetime.now() - datetime.timedelta(hours=12)},
+         {'activity_id': 1,
+          'txn_date': datetime.datetime.now() - datetime.timedelta(hours=8)},
+         {'activity_id': 2,
+          'txn_date': datetime.datetime.now() - datetime.timedelta(hours=4)},
+         ])
+
+    logs = read_logs(conn, user_id, num_days = 7, as_str=True)
+
+    # recent = summarize_recent_activity(
+    #     conn, user_id,
+    #     summary_windows = [datetime.timedelta(days=d) for d in [1,7,30]])
 
     import IPython; IPython.embed()
 
 if __name__=='__main__':
-    main()
+    try:
+        main()
+    except Exception:
+        import traceback, pdb
+        traceback.print_exc()
+        pdb.post_mortem()

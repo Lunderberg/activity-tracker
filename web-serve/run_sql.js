@@ -106,7 +106,7 @@ function log_in() {
         if((req.status >= 200) && (req.status < 300)) {
             var params = JSON.parse(req.response);
             if(params['signed_in']) {
-                show_activity_info();
+                redraw_from_cache();
                 success = true;
             }
         }

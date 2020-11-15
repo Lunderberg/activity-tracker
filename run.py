@@ -51,8 +51,8 @@ def main():
                         help='Use HTTP (without SSL)')
     parser.add_argument('-d', '--database',
                         type=str,
-                        default='postgres',
-                        help='Name of database to connect to (default=postgres)')
+                        default=None,
+                        help='Path to sqlite database')
 
     args = parser.parse_args()
 

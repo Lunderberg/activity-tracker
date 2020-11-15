@@ -1,4 +1,4 @@
 DELETE FROM
-        session_ids s
+        session_ids
 WHERE
-        s.session_counter = %(session_counter)s;
+        rowid = :session_counter;

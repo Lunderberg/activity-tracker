@@ -1,4 +1,5 @@
 UPDATE session_ids
-       session_expiration = %(session_expiration)s
+SET
+       session_expiration = :session_expiration
 WHERE
-       session_counter = %(session_counter)s;
+       rowid = :session_counter;

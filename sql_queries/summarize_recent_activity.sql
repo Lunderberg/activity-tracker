@@ -1,45 +1,60 @@
-DROP TABLE IF EXISTS temp_summary_windows;
+WITH temp_summary_windows AS
+   (SELECT * FROM (
+      SELECT 0 as summary_window
+      UNION
+      VALUES (:summary_window)
+    ) LIMIT -1 OFFSET 1
+   )
 
-CREATE TEMPORARY TABLE temp_summary_windows (
-  summary_window INTERVAL
-);
-
-INSERT INTO temp_summary_windows
-  (summary_window)
-VALUES
-  (%(summary_window)s);
-
-
+--SELECT * FROM temp_summary_windows;
 SELECT
-    summary_window,
-    activity_id,
-    -- Need activity_start, because txn_date might be before the start
-    -- of the summary window.
-    SUM(activity_end - activity_start) AS time_spent,
-    COUNT(*) AS num_periods
-FROM
-(
-    SELECT
        d.*
       ,t.*
-      ,GREATEST(t.txn_date, CURRENT_TIMESTAMP - d.summary_window)
+      ,MAX(t.txn_date, datetime('now',d.summary_window))
        AS activity_start
-      ,LEAD(t.txn_date, 1, CURRENT_TIMESTAMP) OVER (
-          PARTITION BY t.user_id,d.summary_window
-          ORDER BY t.txn_date ASC
-       ) AS activity_end
+      -- ,LEAD(t.txn_date, 1, CURRENT_TIMESTAMP) OVER (
+      --     PARTITION BY t.user_id,d.summary_window
+      --     ORDER BY t.txn_date ASC
+      --  ) AS activity_end
+
+      -- ,LEAD(t.txn_date, 1, CURRENT_TIMESTAMP) OVER (ORDER BY t.txn_date)
+      --  activity_end
+      ,LEAD( t.txn_date, 1, NULL) OVER ( ORDER BY t.txn_date ) asdf
     FROM temp_summary_windows d
     CROSS JOIN transactions t
     WHERE
-         t.user_id = %(user_id)s
-) inner_query
+         t.user_id = :user_id;
 
--- Need to filter on activity_end, not txn_date, in order to include
--- the period that overlaps with the start of the summary window.
-WHERE activity_end > CURRENT_TIMESTAMP - summary_window
+-- SELECT
+--     summary_window,
+--     activity_id,
+--     -- Need activity_start, because txn_date might be before the start
+--     -- of the summary window.
+--     SUM(activity_end - activity_start) AS time_spent,
+--     COUNT(*) AS num_periods
+-- FROM
+-- (
+--     SELECT
+--        d.*
+--       ,t.*
+--       ,GREATEST(t.txn_date, datetime('now',d.summary_window)
+--        AS activity_start
+--       ,LEAD(t.txn_date, 1, CURRENT_TIMESTAMP) OVER (
+--           PARTITION BY t.user_id,d.summary_window
+--           ORDER BY t.txn_date ASC
+--        ) AS activity_end
+--     FROM temp_summary_windows d
+--     CROSS JOIN transactions t
+--     WHERE
+--          t.user_id = :user_id
+-- ) inner_query
 
-GROUP BY
-     summary_window, activity_id
-ORDER BY
-     summary_window, activity_id
-;
+-- -- Need to filter on activity_end, not txn_date, in order to include
+-- -- the period that overlaps with the start of the summary window.
+-- WHERE activity_end > datetime('now',summary_window)
+
+-- GROUP BY
+--      summary_window, activity_id
+-- ORDER BY
+--      summary_window, activity_id
+-- ;

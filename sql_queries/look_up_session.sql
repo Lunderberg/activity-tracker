@@ -4,5 +4,5 @@ SELECT
 FROM
         session_ids s
 WHERE
-        s.session_counter = %(session_counter)s
-    AND s.user_id = %(user_id)s
+        s.rowid = :session_counter
+    AND s.user_id = :user_id

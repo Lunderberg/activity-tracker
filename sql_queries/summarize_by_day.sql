@@ -8,7 +8,7 @@ WITH date_windows AS
             date_trunc('day', (
                   SELECT MIN(txn_date)
                   FROM transactions
-                  WHERE user_id=%(user_id)s
+                  WHERE user_id=:user_id
             )),
             CURRENT_DATE,
             interval '1 day') AS date_series
@@ -22,7 +22,7 @@ periods AS
        ) AS activity_end
     FROM transactions t
     WHERE
-         t.user_id = %(user_id)s
+         t.user_id = :user_id
 )
 
 SELECT

@@ -6,4 +6,4 @@ SELECT
 FROM
     activities
 WHERE
-    user_id = %(user_id)s
+    user_id = :user_id
