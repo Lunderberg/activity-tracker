@@ -1,2 +1,5 @@
 __pycache__
 .*~
+activities.db
+config/config
+config/logs
