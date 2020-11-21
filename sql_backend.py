@@ -37,7 +37,7 @@ def initial_setup(conn):
 
 def create_user(conn, username, password, email_address = None):
     salt = bcrypt.gensalt()
-    hashed_pw = bcrypt.hashpw(password, salt)
+    hashed_pw = bcrypt.hashpw(password.encode('utf-8'), salt)
     user_id = str(uuid.uuid4())
 
     with conn:
@@ -109,7 +109,7 @@ def log_in(conn, username, password):
         return output
 
     output['user_id'] = record['user_id']
-    password_matches = bcrypt.checkpw(password, record['hashed_pw'])
+    password_matches = bcrypt.checkpw(password.encode('utf-8'), record['hashed_pw'])
     output['password_matches'] = password_matches
 
     if not password_matches:
@@ -123,7 +123,7 @@ def log_in(conn, username, password):
     output['session_expiration'] = session_expiration
 
     salt = bcrypt.gensalt()
-    hashed_session_id = bcrypt.hashpw(session_id, salt)
+    hashed_session_id = bcrypt.hashpw(session_id.encode('utf-8'), salt)
 
     with conn:
         cur = conn.execute(get_query('new_session'),
@@ -154,7 +154,7 @@ def check_session_id(conn, user_id, session_counter, session_id):
     else:
         return output
 
-    if bcrypt.checkpw(session_id, record['hashed_session_id']):
+    if bcrypt.checkpw(session_id.encode('utf-8'), record['hashed_session_id']):
         output['has_correct_session_id'] = True
     else:
         return output
@@ -291,15 +291,22 @@ def read_logs(conn, user_id,
 
 
 # From https://stackoverflow.com/a/58295869/2689797
-def timedelta_format(dt):
+def timedelta_format(dt, with_days=False):
     diff = dt.total_seconds()
-    #d = int(diff / 86400)
-    d = 0
+
+    if with_days:
+        d = int(diff / 86400)
+    else:
+        d = 0
+
     h = int((diff - (d * 86400)) / 3600)
     m = int((diff - (d * 86400 + h * 3600)) / 60)
     s = int((diff - (d * 86400 + h * 3600 + m *60)))
     if d > 0:
-        fdiff = '{d}d {h}h {m}m {s}s'
+        if h==0 and m==0 and s==0:
+            fdiff = '{d}d'
+        else:
+            fdiff = '{d}d {h}h {m}m {s}s'
     elif h > 0:
         fdiff = '{h}h {m}m {s}s'
     elif m > 0:
@@ -311,14 +318,14 @@ def timedelta_format(dt):
     return fdiff
 
 def summarize_recent_activity(conn, user_id, summary_windows, as_str=False):
-    summary_windows = {'summary_window{}'.format(i)
+    summary_windows = {'window_seconds{}'.format(i)
                        :
-                       '-{} seconds'.format(dt.total_seconds())
+                       dt.total_seconds()
 
                        for i,dt in enumerate(summary_windows)}
 
     query = (get_query('summarize_recent_activity')
-             .replace('(:summary_window)',
+             .replace('(:window_seconds)',
                       ','.join('(:{})'.format(k) for k in summary_windows))
     )
     params = {'user_id': user_id,
@@ -327,27 +334,26 @@ def summarize_recent_activity(conn, user_id, summary_windows, as_str=False):
     with conn:
         cur = conn.execute(query, params)
         output = [dict(row) for row in cur.fetchall()]
-    import IPython; IPython.embed()
 
     if as_str:
         for row in output:
-            row['summary_window'] = timedelta_format(row['summary_window'])
-            row['time_spent'] = timedelta_format(row['time_spent'])
+            row['summary_window'] = timedelta_format(datetime.timedelta(seconds=row['window_seconds']),
+                                                     with_days = True)
+            row['time_spent'] = timedelta_format(datetime.timedelta(seconds=row['time_spent_seconds']))
 
     return output
 
 
 def summarize_by_day(conn, user_id, as_primitive=False):
-    with conn, conn.cursor() as cur:
-        cur.execute(get_query('summarize_by_day'),
-                    dict(user_id = user_id))
-        output = [row._asdict() for row in cur.fetchall()]
+    with conn:
+        cur = conn.execute(get_query('summarize_by_day'),
+                           dict(user_id = user_id))
+        output = [dict(row) for row in cur.fetchall()]
 
     if as_primitive:
         for row in output:
             row['window_start'] = str(row['window_start'])
             row['window_end'] = str(row['window_end'])
-            row['time_spent'] = row['time_spent'].total_seconds()
 
     return output
 
@@ -382,12 +388,14 @@ def main():
     conn = make_connection()
     initial_setup(conn)
 
-    #create_user(conn, 'asdf', 'qwer')
-    #load_text_file(conn, user_id, 'record.txt')
+    create_user(conn, 'asdf', 'qwer')
+
 
 
     res = log_in(conn, 'asdf', 'qwer')
     user_id = res['user_id']
+
+    load_text_file(conn, user_id, 'record.txt')
 
     res_session = check_session_id(conn, user_id,
                                    res['session_counter'],
@@ -397,25 +405,23 @@ def main():
 
     activity_map = read_activity_map(conn, user_id)
 
-    insert_transaction(conn, user_id, 0)
+    # insert_transaction(conn, user_id, 0)
 
-    overwrite_transactions(
-        conn, user_id,
-        (datetime.datetime.now() - datetime.timedelta(days=1),
-         datetime.datetime.now()),
-        [{'activity_id': 0,
-          'txn_date': datetime.datetime.now() - datetime.timedelta(hours=12)},
-         {'activity_id': 1,
-          'txn_date': datetime.datetime.now() - datetime.timedelta(hours=8)},
-         {'activity_id': 2,
-          'txn_date': datetime.datetime.now() - datetime.timedelta(hours=4)},
-         ])
+    # overwrite_transactions(
+    #     conn, user_id,
+    #     (datetime.datetime.now() - datetime.timedelta(days=1),
+    #      datetime.datetime.now()),
+    #     [{'activity_id': 0,
+    #       'txn_date': datetime.datetime.now() - datetime.timedelta(hours=12)},
+    #      {'activity_id': 1,
+    #       'txn_date': datetime.datetime.now() - datetime.timedelta(hours=8)},
+    #      {'activity_id': 2,
+    #       'txn_date': datetime.datetime.now() - datetime.timedelta(hours=4)},
+    #      ])
 
     logs = read_logs(conn, user_id, num_days = 7, as_str=True)
 
-    # recent = summarize_recent_activity(
-    #     conn, user_id,
-    #     summary_windows = [datetime.timedelta(days=d) for d in [1,7,30]])
+    cache = get_cache_data(conn, user_id)
 
     import IPython; IPython.embed()
 

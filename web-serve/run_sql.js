@@ -29,6 +29,22 @@ function connect_callbacks() {
         .getElementById('button-logout')
         .addEventListener('click', log_out);
 
+    ['username','password'].forEach(id => {
+        document
+            .getElementById(id)
+            .addEventListener('keyup', event => {
+                if(event.key==='Enter') {
+                    log_in();
+                    event.preventDefault();
+                }
+            });
+    });
+
+
+    document
+        .getElementById('username')
+        .addEventListener
+
     document
         .getElementById('button-main-tab')
         .addEventListener('click', () => show_tab('activity-info-tab'));
@@ -106,6 +122,7 @@ function log_in() {
         if((req.status >= 200) && (req.status < 300)) {
             var params = JSON.parse(req.response);
             if(params['signed_in']) {
+                cache = params;
                 redraw_from_cache();
                 success = true;
             }
@@ -529,7 +546,7 @@ function update_daily_chart() {
                                   window_end.getTime())/2 );
             });
 
-            var durations = periods.map(p => p.time_spent / 3600);
+            var durations = periods.map(p => p.time_spent_seconds / 3600);
 
             var color = activity_map[activity_id].color;
             var name = activity_map[activity_id].name;
@@ -546,6 +563,10 @@ function update_daily_chart() {
 
     var layout = {
         title: 'Daily Duration (hours)',
+
+        yaxis: {tickvals: Array(7).fill(null).map( (_,i) => 4*i ),
+                range: [0,25],
+               },
     };
 
     Plotly.newPlot("daily-activities", data, layout);
