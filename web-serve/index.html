@@ -6,18 +6,104 @@
   </head>
 
   <body>
-    <div class=display-current>Current: <span id=current-activity></span></div>
-    <div id=button-container></div>
+    <div class="unverified-login">
+      <form>
+        <label for="username">Username: </label>
+        <input type="text" id="username" name="username">
+        <br>
 
-    <div id=result></div>
+        <label for="password">Password: </label>
+        <input type="password" id="password" name="password">
+        <br>
 
-    <div id=plot></div>
+        <input type="button" id="button-login" value="Log in">
+        <span id=span-login-failed class=fade-out>Log in failed.</span>
+      </form>
+    </div>
 
-    <div id=recent-activity-tables></div>
+    <div id=tab-selector class="verified-login hidden">
+      <button id=button-main-tab>Main</button>
+      <button id=button-edit-activities-tab>Edit Settings</button>
+      <button id=button-edit-data-tab>Edit Data</button>
+      <button id=button-logout>Logout</button>
+    </div>
 
-    <div id=daily-activities></div>
+    <br>
+
+    <div class="verified-login hidden">
+      <div id=activity-info-tab class="tab">
+        <div class=display-current>Current: <span id=current-activity></span></div>
+        <div id=button-container></div>
+
+        <div id=result></div>
+
+        <div id=weekly-view></div>
+
+        <div id=recent-activity-tables></div>
+
+        <div id=daily-activities></div>
+      </div>
+
+      <div id=edit-activities-tab class="tab hidden">
+        <table id=edit-activity-table border="1">
+          <tr>
+            <th></th>
+            <th>Activity</th>
+            <th>Color</th>
+            <th>Hide</th>
+          </tr>
+        </table>
+
+        <div id=activity-update-status></div>
+
+        <div>
+          <button id=add-new-activity-row>Add New Activity</button>
+          <button id=submit-activity-settings>Save Changes</button>
+        </div>
+      </div>
+
+
+      <div id=edit-data-tab class="tab hidden">
+        <fieldset>
+          <legend>Date Window Select</legend>
+          <div>
+            Start: <input id=edit-data-window-start
+                          type="datetime-local" value="2020-12-30T16:34">
+          </div>
+          <div>
+            End: <input id=edit-data-window-end
+                        type="datetime-local" value="2020-12-30T16:34">
+          </div>
+
+          <button id=edit-data-init>Start Editing</button>
+          <span id=edit-data-init-results></span>
+        </fieldset>
+
+        <fieldset id=edit-data-fieldset>
+          <legend>Edit Data</legend>
+
+          From <span id=edit-data-window-start-display></span>
+          to <span id=edit-data-window-end-display></span>
+
+          <table id=edit-data-table border="1">
+            <tr>
+              <th>Activity</th>
+              <th>Time Started</th>
+              <th></th>
+            </tr>
+          </table>
+
+          <button id=edit-data-new-row>Add New Row</button>
+          <button id=edit-data-submit>Submit</button>
+          <span id=edit-data-submit-results></span>
+        </fieldset>
+
+
+      </div>
+    </div>
 
   </body>
 
-  <script src="run.js"></script>
+  <script type="text/javascript">console.log('template not replaced');</script>
+  <script src="run_sql.js"></script>
 </html>

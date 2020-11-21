@@ -20,3 +20,47 @@
 .time-span-entry {
     text-align: right;
 }
+
+.unverified-login { }
+
+.verified-login { }
+
+.hidden {
+    display: none;
+}
+
+#tab-selector button {
+    float: left;
+}
+
+#button-logout {
+    float: right;
+}
+
+.tab {
+    clear: both;
+}
+
+.fade-out {
+    visibility: hidden;
+    opacity: 0;
+    transition: visibility 0s 2s, opacity 2s linear;
+}
+
+.close-button {
+    color: red;
+    background-color: white;
+    font-weight: bold;
+}
+
+fieldset {
+    width: 0px;
+}
+
+#edit-data-table {
+    width: 400px;
+}
+
+.edit-data-invalid-row {
+    background-color: lightsalmon;
+}
